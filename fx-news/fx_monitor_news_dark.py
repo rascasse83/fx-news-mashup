@@ -12,7 +12,8 @@ import re
 from bs4 import BeautifulSoup
 import os
 import random
-
+from scrapers.scraper import scrape_yahoo_finance_news, create_mock_news
+from apis.rates_fetch import fetch_currency_rates, update_rates_with_variation, get_mock_currency_rates
 
 # Configure page
 st.set_page_config(
@@ -21,6 +22,49 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Initialize all session state variables
+if 'subscriptions' not in st.session_state:
+    st.session_state.subscriptions = [
+        {"base": "EUR", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},
+        {"base": "USD", "quote": "JPY", "threshold": 0.5, "last_rate": None, "current_rate": None},
+        {"base": "GBP", "quote": "EUR", "threshold": 0.5, "last_rate": None, "current_rate": None}
+    ]
+
+if 'notifications' not in st.session_state:
+    st.session_state.notifications = []
+
+if 'last_refresh' not in st.session_state:
+    st.session_state.last_refresh = None
+
+if 'last_news_fetch' not in st.session_state:
+    st.session_state.last_news_fetch = None
+
+if 'cached_news' not in st.session_state:
+    st.session_state.cached_news = []
+
+if 'rate_history' not in st.session_state:
+    st.session_state.rate_history = {}
+
+if 'debug_log' not in st.session_state:
+    st.session_state.debug_log = []
+
+if 'show_debug' not in st.session_state:
+    st.session_state.show_debug = False
+
+if 'add_variations' not in st.session_state:
+    st.session_state.add_variations = False
+
+if 'auto_refresh' not in st.session_state:
+    st.session_state.auto_refresh = True
+    
+# Add this to the initialization section of your app
+if 'show_debug' not in st.session_state:
+    st.session_state.show_debug = False
+
+# And initialize add_variations too since you're checking for it
+if 'add_variations' not in st.session_state:
+    st.session_state.add_variations = False
 
 # Add this near the top of your script after st.set_page_config()
 if 'auto_refresh' not in st.session_state:
@@ -33,213 +77,32 @@ auto_refresh = st.session_state.auto_refresh
 if auto_refresh:
     st.write(f"<meta http-equiv='refresh' content='60'>", unsafe_allow_html=True)
     
-def format_currency_pair_for_yahoo(base, quote):
-    """
-    Format currency pair for Yahoo Finance URL
+# def format_currency_pair_for_yahoo(base, quote):
+#     """
+#     Format currency pair for Yahoo Finance URL
     
-    Examples:
-    - EUR/USD -> EURUSD=X
-    - USD/JPY -> JPY=X (when base is USD, only quote currency is used)
+#     Examples:
+#     - EUR/USD -> EURUSD=X
+#     - USD/JPY -> JPY=X (when base is USD, only quote currency is used)
     
-    Args:
-        base: Base currency code (e.g., 'EUR')
-        quote: Quote currency code (e.g., 'USD')
+#     Args:
+#         base: Base currency code (e.g., 'EUR')
+#         quote: Quote currency code (e.g., 'USD')
         
-    Returns:
-        Formatted symbol for Yahoo Finance URL
-    """
-    # Convert to uppercase for consistency
-    base = base.upper()
-    quote = quote.upper()
+#     Returns:
+#         Formatted symbol for Yahoo Finance URL
+#     """
+#     # Convert to uppercase for consistency
+#     base = base.upper()
+#     quote = quote.upper()
     
-    # Different format when base currency is USD
-    if base == 'USD':
-        return f"{quote}%3DX"  # URL encoded form of JPY=X
-    else:
-        return f"{base}{quote}%3DX"  # URL encoded form of EURUSD=X
+#     # Different format when base currency is USD
+#     if base == 'USD':
+#         return f"{quote}%3DX"  # URL encoded form of JPY=X
+#     else:
+#         return f"{base}{quote}%3DX"  # URL encoded form of EURUSD=X
 
-def scrape_yahoo_finance_news(currency_pairs, max_articles=5):
-    """
-    Scrape news from Yahoo Finance for specified currency pairs
-    
-    Args:
-        currency_pairs: List of tuples (base, quote) e.g. [('EUR', 'USD'), ('GBP', 'USD')]
-        max_articles: Maximum number of articles to return per currency pair
-        
-    Returns:
-        List of news items with title, timestamp, currency, source, url
-    """
-    all_news = []
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    
-    for base, quote in currency_pairs:
-        try:
-            # Format currency pair for Yahoo Finance URL
-            yahoo_symbol = format_currency_pair_for_yahoo(base, quote)
-            url = f"https://uk.finance.yahoo.com/quote/{yahoo_symbol}/news/"
-            print(f"Fetching news for {base}/{quote} from URL: {url}")
-            
-            # Add a random delay to avoid being blocked
-            time.sleep(random.uniform(0.5, 1.5))
-            
-            # Make request
-            response = requests.get(url, headers=headers)
-            if response.status_code != 200:
-                print(f"Failed to fetch data for {base}/{quote}: {response.status_code}")
-                continue
-                
-            # Parse HTML
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Find news container (based on the HTML structure)
-            news_container = soup.select_one('div[data-testid="news-tabs-container"]')
-            if not news_container:
-                print(f"News container not found for {base}/{quote}")
-                # Try finding the general news stream
-                news_container = soup.select_one('div.news-stream')
-                if not news_container:
-                    print(f"Alternate news container not found for {base}/{quote}")
-                    continue
-            
-            # Find all news items in the stream
-            news_items = soup.select('li.stream-item.story-item')
-            
-            if not news_items:
-                print(f"No news found for {base}/{quote}")
-                continue
-            
-            print(f"Found {len(news_items)} news items for {base}/{quote}")
-                
-            # Process each news item
-            pair_news = []
-            for item in news_items[:max_articles]:
-                try:
-                    # Extract title
-                    title_element = item.select_one('h3.clamp')
-                    if not title_element:
-                        continue
-                    title = title_element.text.strip()
-                    
-                    # Extract link
-                    link_element = item.select_one('a.subtle-link[data-ylk*="elm:hdln"]')
-                    link = link_element['href'] if link_element and 'href' in link_element.attrs else ''
-                    if link and not link.startswith('http'):
-                        link = f"https://uk.finance.yahoo.com{link}"
-                    
-                    # Extract source and timestamp
-                    publishing_element = item.select_one('div.publishing')
-                    source = "Yahoo Finance"
-                    timestamp = datetime.now()
-                    
-                    if publishing_element:
-                        source_text = publishing_element.text.strip()
-                        parts = source_text.split('•')
-                        
-                        if len(parts) >= 1:
-                            source = parts[0].strip()
-                        
-                        if len(parts) >= 2:
-                            time_text = parts[1].strip().lower()
-                            
-                            # Parse relative time
-                            if 'yesterday' in time_text:
-                                timestamp = datetime.now() - timedelta(days=1)
-                            elif 'days ago' in time_text:
-                                days = 1  # Default
-                                try:
-                                    days_match = re.search(r'(\d+)\s+days ago', time_text)
-                                    if days_match:
-                                        days = int(days_match.group(1))
-                                except:
-                                    pass
-                                timestamp = datetime.now() - timedelta(days=days)
-                            elif 'hours ago' in time_text:
-                                hours = 1  # Default
-                                try:
-                                    hours_match = re.search(r'(\d+)\s+hours ago', time_text)
-                                    if hours_match:
-                                        hours = int(hours_match.group(1))
-                                except:
-                                    pass
-                                timestamp = datetime.now() - timedelta(hours=hours)
-                            elif 'minutes ago' in time_text:
-                                minutes = 5  # Default
-                                try:
-                                    minutes_match = re.search(r'(\d+)\s+minutes ago', time_text)
-                                    if minutes_match:
-                                        minutes = int(minutes_match.group(1))
-                                except:
-                                    pass
-                                timestamp = datetime.now() - timedelta(minutes=minutes)
-                            elif 'last month' in time_text:
-                                timestamp = datetime.now() - timedelta(days=30)
-                            elif 'months ago' in time_text:
-                                months = 1  # Default
-                                try:
-                                    months_match = re.search(r'(\d+)\s+months ago', time_text)
-                                    if months_match:
-                                        months = int(months_match.group(1))
-                                except:
-                                    pass
-                                timestamp = datetime.now() - timedelta(days=30*months)
-                    
-                    # Find ticker tags for the news item
-                    tickers = []
-                    ticker_elements = item.select('a.ticker')
-                    for ticker_elem in ticker_elements:
-                        ticker_symbol = ticker_elem.select_one('span.symbol')
-                        if ticker_symbol:
-                            tickers.append(ticker_symbol.text.strip())
-                    
-                    # Create news item
-                    news_item = {
-                        "title": title,
-                        "timestamp": timestamp,
-                        "currency": f"{base}/{quote}",
-                        "source": source,
-                        "url": link,
-                        "related_tickers": tickers
-                    }
-                    
-                    # Extract summary if available
-                    summary_element = item.select_one('p.clamp')
-                    if summary_element:
-                        news_item["summary"] = summary_element.text.strip()
-                    
-                    # Analyze sentiment using TextBlob
-                    text_for_sentiment = title
-                    if "summary" in news_item:
-                        text_for_sentiment += " " + news_item["summary"]
-                        
-                    analysis = TextBlob(text_for_sentiment)
-                    news_item["score"] = round(analysis.sentiment.polarity, 2)  # -1 to 1
-                    
-                    if news_item["score"] > 0.2:
-                        news_item["sentiment"] = "positive"
-                    elif news_item["score"] < -0.2:
-                        news_item["sentiment"] = "negative"
-                    else:
-                        news_item["sentiment"] = "neutral"
-                    
-                    pair_news.append(news_item)
-                    
-                except Exception as e:
-                    print(f"Error processing news item for {base}/{quote}: {e}")
-                    continue
-            
-            all_news.extend(pair_news)
-            
-        except Exception as e:
-            print(f"Error scraping news for {base}/{quote}: {e}")
-    
-    # Sort all news by timestamp (newest first)
-    all_news.sort(key=lambda x: x["timestamp"], reverse=True)
-    
-    return all_news
-
-# Function to fetch news, with fallback to mock data
+# Add the fetch_news function to your main app since it depends on st.session_state
 def fetch_news(currencies=None, use_mock_fallback=True):
     """Fetch news for currency pairs, with fallback to mock data if needed."""
     # Create currency pairs from subscriptions
@@ -255,10 +118,13 @@ def fetch_news(currencies=None, use_mock_fallback=True):
     if not currency_pairs:
         return []
     
+    st.session_state.debug_log = []  # Reset debug log
+    st.session_state.debug_log.append(f"Attempting to fetch news for {len(currency_pairs)} currency pairs")
+    
     try:
         # Try to scrape live news from Yahoo Finance
         with st.spinner("Fetching latest news from Yahoo Finance..."):
-            news_items = scrape_yahoo_finance_news(currency_pairs)
+            news_items = scrape_yahoo_finance_news(currency_pairs, debug_log=st.session_state.debug_log)
         
         if news_items:
             add_notification(f"Successfully fetched {len(news_items)} news items from Yahoo Finance", "success")
@@ -266,7 +132,10 @@ def fetch_news(currencies=None, use_mock_fallback=True):
             st.session_state.last_news_fetch = datetime.now()
             st.session_state.cached_news = news_items
             return news_items
+        else:
+            st.session_state.debug_log.append("No news items found from Yahoo Finance")
     except Exception as e:
+        st.session_state.debug_log.append(f"Error fetching news from Yahoo Finance: {str(e)}")
         add_notification(f"Error fetching news from Yahoo Finance: {str(e)}", "error")
     
     # If we got here, either there was an error or no news items were found
@@ -275,58 +144,11 @@ def fetch_news(currencies=None, use_mock_fallback=True):
         return create_mock_news(currencies)
     
     # Use cached news if available
-    if 'cached_news' in st.session_state:
+    if 'cached_news' in st.session_state and st.session_state.cached_news:
         return st.session_state.cached_news
     
     # Return empty list if all else fails
     return []
-
-# Mock news data function
-def create_mock_news(currencies=None):
-    """Create mock news data with realistic timestamps."""
-    now = datetime.now()
-    
-    # Mock news data with recent timestamps
-    mock_news = [
-        {"title": "ECB signals potential rate cuts in coming months", "timestamp": now - timedelta(minutes=45), "currency": "EUR/USD", "source": "Bloomberg"},
-        {"title": "UK inflation rises unexpectedly in January", "timestamp": now - timedelta(hours=2), "currency": "GBP/USD", "source": "Financial Times"},
-        {"title": "Silver demand surges amid industrial applications growth", "timestamp": now - timedelta(hours=3), "currency": "XAG/USD", "source": "Reuters"},
-        {"title": "Bank of Japan maintains ultra-low interest rates", "timestamp": now - timedelta(hours=5), "currency": "USD/JPY", "source": "Nikkei"},
-        {"title": "US Dollar weakens following Federal Reserve comments", "timestamp": now - timedelta(hours=6), "currency": "EUR/USD", "source": "CNBC"},
-        {"title": "Australian economy shows resilience in quarterly report", "timestamp": now - timedelta(hours=8), "currency": "AUD/USD", "source": "ABC News"},
-        {"title": "Euro strengthens against major currencies after positive economic data", "timestamp": now - timedelta(hours=10), "currency": "EUR/GBP", "source": "Reuters"},
-        {"title": "British Pound volatility expected ahead of Bank of England meeting", "timestamp": now - timedelta(hours=12), "currency": "GBP/EUR", "source": "Sky News"}
-    ]
-    
-    # Filter by currencies if specified
-    if currencies:
-        currencies = [c.upper() for c in currencies]
-        filtered_news = []
-        for news in mock_news:
-            pair_currencies = news["currency"].split('/')
-            if any(c in currencies for c in pair_currencies):
-                filtered_news.append(news)
-        mock_news = filtered_news
-    
-    # Add sentiment analysis using TextBlob
-    for news in mock_news:
-        # Analyze title for sentiment
-        analysis = TextBlob(news["title"])
-        news["score"] = round(analysis.sentiment.polarity, 2)  # -1 to 1
-        
-        if news["score"] > 0.2:
-            news["sentiment"] = "positive"
-        elif news["score"] < -0.2:
-            news["sentiment"] = "negative"
-        else:
-            news["sentiment"] = "neutral"
-        
-        # Add a URL field (mock)
-        news["url"] = f"https://finance.yahoo.com/news/{'-'.join(news['title'].lower().split())}"
-    
-    return mock_news
-
-
 
 # Initialize session state for subscriptions, notifications, and previous rates
 if 'subscriptions' not in st.session_state:
@@ -383,36 +205,29 @@ def add_notification(message, type='system'):
     if len(st.session_state.notifications) > 20:
         st.session_state.notifications = st.session_state.notifications[:20]
 
-# Function to fetch currency rates
-def fetch_currency_rates(base):
-    try:
-        # Try the GitHub Pages API first
-        url = f"https://currency-api.pages.dev/v1/currencies/{base.lower()}.json"
-        response = requests.get(url, timeout=5)
-
-        if response.status_code != 200:
-            # Fall back to the CDN URL
-            url = f"https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/{base.lower()}.json"
-            response = requests.get(url, timeout=5)
-
-        data = response.json()
-        return data
-    except Exception as e:
-        st.error(f"Error fetching rates for {base}: {e}")
-        return None
-
-# Function to update rates and check thresholds
-def update_rates():
+# Update the update_rates function to use the new module
+def update_rates(use_mock_data=False):
     try:
         updated_any = False
         bases_to_fetch = set(sub["base"].lower() for sub in st.session_state.subscriptions)
-
+        
         results = {}
-        for base in bases_to_fetch:
-            data = fetch_currency_rates(base)
-            if data and base in data:
-                results[base] = data[base]
-                updated_any = True
+        
+        if use_mock_data:
+            # Use mock data for testing
+            mock_data = get_mock_currency_rates()
+            for base in bases_to_fetch:
+                if base in mock_data:
+                    results[base] = mock_data[base]
+                    updated_any = True
+            add_notification("Using mock currency data for testing", "info")
+        else:
+            # Fetch real data from APIs
+            for base in bases_to_fetch:
+                data = fetch_currency_rates(base, api_key=API_KEY, debug_log=st.session_state.debug_log)
+                if data and base in data:
+                    results[base] = data[base]
+                    updated_any = True
 
         if updated_any:
             # Update subscriptions with new rates
@@ -424,6 +239,10 @@ def update_rates():
                     # Store last rate before updating
                     sub["last_rate"] = sub["current_rate"]
                     sub["current_rate"] = results[base][quote]
+                    
+                    # Optional: Add small random variations for testing UI updates
+                    if 'show_debug' in st.session_state and st.session_state.show_debug and 'add_variations' in st.session_state and st.session_state.add_variations:
+                        sub["current_rate"] = update_rates_with_variation(sub["current_rate"])
 
                     # Initialize rate history if needed
                     pair_key = f"{base}_{quote}"
