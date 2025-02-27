@@ -24,76 +24,27 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize session state variables only if they don't exist yet
-if 'initialized' not in st.session_state:
-    # Set this flag to prevent reinitialization
-    st.session_state.initialized = True
-    
-    # Initialize all session state variables with their default values
-    st.session_state.subscriptions = [
+# Initialize session state only once
+for key, default_value in {
+    'subscriptions': [
         {"base": "EUR", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},
         {"base": "USD", "quote": "JPY", "threshold": 0.5, "last_rate": None, "current_rate": None},
         {"base": "GBP", "quote": "EUR", "threshold": 0.5, "last_rate": None, "current_rate": None}
-    ]
-    st.session_state.notifications = []
-    st.session_state.last_refresh = None
-    st.session_state.last_news_fetch = None
-    st.session_state.cached_news = []
-    st.session_state.rate_history = {}
-    st.session_state.debug_log = []
-    st.session_state.show_debug = False
-    st.session_state.add_variations = False
-    st.session_state.auto_refresh = True
-
-if 'notifications' not in st.session_state:
-    st.session_state.notifications = []
-
-if 'last_refresh' not in st.session_state:
-    st.session_state.last_refresh = None
-
-if 'last_news_fetch' not in st.session_state:
-    st.session_state.last_news_fetch = None
-
-if 'cached_news' not in st.session_state:
-    st.session_state.cached_news = []
-
-if 'rate_history' not in st.session_state:
-    st.session_state.rate_history = {}
-
-if 'debug_log' not in st.session_state:
-    st.session_state.debug_log = []
-
-if 'show_debug' not in st.session_state:
-    st.session_state.show_debug = False
-
-if 'add_variations' not in st.session_state:
-    st.session_state.add_variations = False
-
-if 'auto_refresh' not in st.session_state:
-    st.session_state.auto_refresh = True
-
-# Add this to the initialization section of your app
-if 'show_debug' not in st.session_state:
-    st.session_state.show_debug = False
-
-# And initialize add_variations too since you're checking for it
-if 'add_variations' not in st.session_state:
-    st.session_state.add_variations = False
-
-if 'notifications' not in st.session_state:
-    st.session_state.notifications = []
-
-if 'last_refresh' not in st.session_state:
-    st.session_state.last_refresh = None
-
-if 'last_news_fetch' not in st.session_state:
-    st.session_state.last_news_fetch = None
-
-if 'cached_news' not in st.session_state:
-    st.session_state.cached_news = []
-
-if 'rate_history' not in st.session_state:
-    st.session_state.rate_history = {}
+    ],
+    'notifications': [],
+    'last_refresh': None,
+    'last_news_fetch': None, 
+    'cached_news': [],
+    'rate_history': {},
+    'debug_log': [],
+    'show_debug': False,
+    'add_variations': False,
+    'auto_refresh': True,
+    'last_auto_refresh_time': datetime.now()
+}.items():
+    # Only set the value if the key doesn't exist in session state
+    if key not in st.session_state:
+        st.session_state[key] = default_value
 
 # Available currencies
 available_currencies = {
@@ -112,19 +63,6 @@ available_currencies = {
 }
 # Fetch API key from environment variables
 API_KEY = os.getenv("CURRENCY_API_KEY")
-
-
-# Add this near the top of your script after st.set_page_config()
-if 'auto_refresh' not in st.session_state:
-    st.session_state.auto_refresh = True  # Default to true
-
-# Get current auto_refresh state from session state
-auto_refresh = st.session_state.auto_refresh
-
-# Add the meta refresh tag if auto_refresh is enabled
-if auto_refresh:
-    st.write(f"<meta http-equiv='refresh' content='60'>", unsafe_allow_html=True)
-    
 
 # Add the fetch_news function to your main app since it depends on st.session_state
 def fetch_news(currencies=None, use_mock_fallback=True):
@@ -181,8 +119,6 @@ def fetch_news(currencies=None, use_mock_fallback=True):
 
     return []
 
-
-
 # Function to add a notification
 def add_notification(message, type='system'):
     notification = {
@@ -216,7 +152,6 @@ def update_rates(use_mock_data=False):
             # Attempt to fetch real data using the new scraper
             currency_pairs = [(sub["base"], sub["quote"]) for sub in st.session_state.subscriptions]
             results = scrape_yahoo_finance_rates(currency_pairs, debug_log=st.session_state.debug_log)
-            # print(results)
             # Check if any rates were fetched
             if results:
                 updated_any = True
@@ -226,14 +161,11 @@ def update_rates(use_mock_data=False):
             for sub in st.session_state.subscriptions:
                 base = sub["base"].lower()
                 quote = sub["quote"].lower()
-                # print(base)
 
                 # Normalize results keys to lowercase for case-insensitive comparison
                 results_lower = {k.lower(): {kk.lower(): vv for kk, vv in v.items()} for k, v in results.items()}
 
                 if base in results_lower and quote in results_lower[base]:
-                # if base in results and quote in results[base]:
-                    print(results_lower[base][quote])
                     # Store last rate before updating
                     sub["last_rate"] = sub["current_rate"]
                     sub["current_rate"] = results_lower[base][quote]
@@ -316,7 +248,6 @@ with st.sidebar:
                 update_rates()
 
     # Manual refresh button
-    # After (fixed):
     st.button("🔄 Refresh Rates", on_click=update_rates)
     st.button("📰 Refresh News", on_click=lambda: fetch_news(use_mock_fallback=True))
 
@@ -330,7 +261,14 @@ with st.sidebar:
     auto_refresh = st.checkbox("Auto-refresh (60s)", value=st.session_state.auto_refresh)
     if auto_refresh != st.session_state.auto_refresh:
         st.session_state.auto_refresh = auto_refresh
-        st.rerun()  # Rerun to either add or remove the refresh meta tag
+        st.session_state.last_auto_refresh_time = datetime.now()
+    
+    # Add countdown timer if auto-refresh is on
+    if st.session_state.auto_refresh:
+        current_time = datetime.now()
+        elapsed_time = (current_time - st.session_state.last_auto_refresh_time).total_seconds()
+        remaining_seconds = max(0, 60 - int(elapsed_time))
+        st.caption(f"Next refresh in: {remaining_seconds} seconds")
 
     # Show notification history
     st.header("Notifications")
@@ -578,7 +516,22 @@ with col4:
     else:
         st.info("No news items match your filters")
 
-
-# # Include the CSS file
-# with open("styles.css") as f:
-#     st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+# Handle auto-refresh at the end of the script
+if st.session_state.auto_refresh:
+    current_time = datetime.now()
+    elapsed_time = (current_time - st.session_state.last_auto_refresh_time).total_seconds()
+    
+    if elapsed_time >= 60:
+        # Update timestamp
+        st.session_state.last_auto_refresh_time = current_time
+        
+        # Update data
+        update_rates()
+        
+        # Check if news needs refresh
+        if (st.session_state.last_news_fetch is None or 
+            (current_time - st.session_state.last_news_fetch).total_seconds() > 900):  # 15 minutes
+            fetch_news(use_mock_fallback=True)
+            
+        # Rerun to refresh the UI
+        st.rerun()
