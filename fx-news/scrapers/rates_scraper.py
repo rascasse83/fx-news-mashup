@@ -104,7 +104,7 @@ def scrape_yahoo_finance_rates(currency_pairs, debug_log=None):
     return base_rates
 
 
-# Example usage
+# # Example usage
 # currency_pairs = [('EUR', 'USD'),('GBP', 'USD'),('CAD', 'USD')]
 # rates = scrape_yahoo_finance_rates(currency_pairs)
 # print(rates)

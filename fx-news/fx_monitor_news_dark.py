@@ -203,31 +203,27 @@ def update_rates(use_mock_data=False):
             # Attempt to fetch real data using the new scraper
             currency_pairs = [(sub["base"], sub["quote"]) for sub in st.session_state.subscriptions]
             results = scrape_yahoo_finance_rates(currency_pairs, debug_log=st.session_state.debug_log)
-
+            # print(results)
             # Check if any rates were fetched
             if results:
                 updated_any = True
-
-            # Fallback: If any rates are missing, fetch using the existing API method
-            for sub in st.session_state.subscriptions:
-                base = sub["base"].lower()
-                quote = sub["quote"].lower()
-                if base not in results or quote not in results[base]:
-                    data = fetch_currency_rates(base, api_key=API_KEY, debug_log=st.session_state.debug_log)
-                    if data and base in data:
-                        results[base] = data[base]
-                        updated_any = True
 
         if updated_any:
             # Update subscriptions with new rates
             for sub in st.session_state.subscriptions:
                 base = sub["base"].lower()
                 quote = sub["quote"].lower()
+                # print(base)
 
-                if base in results and quote in results[base]:
+                # Normalize results keys to lowercase for case-insensitive comparison
+                results_lower = {k.lower(): {kk.lower(): vv for kk, vv in v.items()} for k, v in results.items()}
+
+                if base in results_lower and quote in results_lower[base]:
+                # if base in results and quote in results[base]:
+                    # print(results_lower[base][quote])
                     # Store last rate before updating
                     sub["last_rate"] = sub["current_rate"]
-                    sub["current_rate"] = results[base][quote]
+                    sub["current_rate"] = results_lower[base][quote]
 
                     # Optional: Add small random variations for testing UI updates
                     if 'show_debug' in st.session_state and st.session_state.show_debug and 'add_variations' in st.session_state and st.session_state.add_variations:

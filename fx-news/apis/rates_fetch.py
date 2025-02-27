@@ -111,3 +111,9 @@ def get_mock_currency_rates():
         mock_data[base] = rates
         
     return mock_data
+
+
+# # Example usage
+# base = 'eur'
+# rates = fetch_currency_rates(base)
+# print(rates)
