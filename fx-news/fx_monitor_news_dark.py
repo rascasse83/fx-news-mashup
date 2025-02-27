@@ -302,13 +302,14 @@ fig.update_layout(
     geo=dict(
         showframe=False,
         showcoastlines=False,
-        projection_type='equirectangular',
-        center=dict(lat=40, lon=-100),  # Center the map around the US and Europe
-        lataxis_range=[-60, 80],  # Keep latitude range from -60 to 80 degrees
-        lonaxis_range=[-160, -40]  # Adjust the longitude range to cover both Europe and the US
+        projection_type='mercator',  # Change projection to 'mercator' for a more even distribution
+        center=dict(lat=40, lon=-100),  # Center between Europe and the US
+        lataxis_range=[-60, 80],  # Latitude range to show a wide view
+        lonaxis_range=[-160, -40],  # Longitude range for both Europe and the US
     ),
-    height=400,  # Increase the height for better visibility
-    margin=dict(l=0, r=0, t=0, b=0)
+    height=600,  # Increase height for better visibility
+    width=1200,  # Increase width to make the map wider
+    margin=dict(l=0, r=0, t=0, b=0)  # Remove margins to use full screen
 )
 
 # Display the geomap with full width
