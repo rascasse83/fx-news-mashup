@@ -35,14 +35,6 @@ def format_currency_pair_for_yahoo(base, quote):
 def scrape_yahoo_finance_news(currency_pairs, max_articles=5, debug_log=None):
     """
     Scrape news from Yahoo Finance for specified currency pairs
-    
-    Args:
-        currency_pairs: List of tuples (base, quote) e.g. [('EUR', 'USD'), ('GBP', 'USD')]
-        max_articles: Maximum number of articles to return per currency pair
-        debug_log: Optional list to append debug information to
-        
-    Returns:
-        List of news items with title, timestamp, currency, source, url
     """
     all_news = []
     headers = {
@@ -52,11 +44,14 @@ def scrape_yahoo_finance_news(currency_pairs, max_articles=5, debug_log=None):
     if debug_log is None:
         debug_log = []
     
+    total_found = 0  # Add a counter for total articles found
+    
     for base, quote in currency_pairs:
         try:
             # Format currency pair for Yahoo Finance URL
             yahoo_symbol = format_currency_pair_for_yahoo(base, quote)
             url = f"https://uk.finance.yahoo.com/quote/{yahoo_symbol}/news/"
+            print(f"Fetching news for {base}/{quote} from URL: {url}")  # Console logging
             debug_log.append(f"Fetching news for {base}/{quote} from URL: {url}")
             
             # Add a random delay to avoid being blocked
@@ -65,6 +60,7 @@ def scrape_yahoo_finance_news(currency_pairs, max_articles=5, debug_log=None):
             # Make request
             response = requests.get(url, headers=headers)
             if response.status_code != 200:
+                print(f"Failed to fetch data for {base}/{quote}: {response.status_code}")  # Console logging
                 debug_log.append(f"Failed to fetch data for {base}/{quote}: {response.status_code}")
                 continue
                 
@@ -74,10 +70,12 @@ def scrape_yahoo_finance_news(currency_pairs, max_articles=5, debug_log=None):
             # Find news container (based on the HTML structure)
             news_container = soup.select_one('div[data-testid="news-tabs-container"]')
             if not news_container:
+                print(f"News container not found for {base}/{quote}")  # Console logging
                 debug_log.append(f"News container not found for {base}/{quote}")
                 # Try finding the general news stream
                 news_container = soup.select_one('div.news-stream')
                 if not news_container:
+                    print(f"Alternate news container not found for {base}/{quote}")  # Console logging
                     debug_log.append(f"Alternate news container not found for {base}/{quote}")
                     continue
             
@@ -85,15 +83,20 @@ def scrape_yahoo_finance_news(currency_pairs, max_articles=5, debug_log=None):
             news_items = soup.select('li.stream-item.story-item')
             
             if not news_items:
+                print(f"No news found for {base}/{quote}")  # Console logging
                 debug_log.append(f"No news found for {base}/{quote}")
                 continue
             
+            print(f"Found {len(news_items)} news items for {base}/{quote}")  # Console logging
             debug_log.append(f"Found {len(news_items)} news items for {base}/{quote}")
+            total_found += len(news_items)
                 
             # Process each news item
             pair_news = []
             for item in news_items[:max_articles]:
                 try:
+                    # Extract title and other data...
+                    # ... [rest of your function remains the same]
                     # Extract title
                     title_element = item.select_one('h3.clamp')
                     if not title_element:

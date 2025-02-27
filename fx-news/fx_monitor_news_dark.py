@@ -12,8 +12,9 @@ import re
 from bs4 import BeautifulSoup
 import os
 import random
-from scrapers.scraper import scrape_yahoo_finance_news, create_mock_news
+from scrapers.news_scraper import scrape_yahoo_finance_news, create_mock_news
 from apis.rates_fetch import fetch_currency_rates, update_rates_with_variation, get_mock_currency_rates
+from scrapers.rates_scraper import scrape_yahoo_finance_rates
 
 # Configure page
 st.set_page_config(
@@ -57,7 +58,7 @@ if 'add_variations' not in st.session_state:
 
 if 'auto_refresh' not in st.session_state:
     st.session_state.auto_refresh = True
-    
+
 # Add this to the initialization section of your app
 if 'show_debug' not in st.session_state:
     st.session_state.show_debug = False
@@ -65,98 +66,6 @@ if 'show_debug' not in st.session_state:
 # And initialize add_variations too since you're checking for it
 if 'add_variations' not in st.session_state:
     st.session_state.add_variations = False
-
-# Add this near the top of your script after st.set_page_config()
-if 'auto_refresh' not in st.session_state:
-    st.session_state.auto_refresh = True  # Default to true
-
-# Get current auto_refresh state from session state
-auto_refresh = st.session_state.auto_refresh
-
-# Add the meta refresh tag if auto_refresh is enabled
-if auto_refresh:
-    st.write(f"<meta http-equiv='refresh' content='60'>", unsafe_allow_html=True)
-    
-# def format_currency_pair_for_yahoo(base, quote):
-#     """
-#     Format currency pair for Yahoo Finance URL
-    
-#     Examples:
-#     - EUR/USD -> EURUSD=X
-#     - USD/JPY -> JPY=X (when base is USD, only quote currency is used)
-    
-#     Args:
-#         base: Base currency code (e.g., 'EUR')
-#         quote: Quote currency code (e.g., 'USD')
-        
-#     Returns:
-#         Formatted symbol for Yahoo Finance URL
-#     """
-#     # Convert to uppercase for consistency
-#     base = base.upper()
-#     quote = quote.upper()
-    
-#     # Different format when base currency is USD
-#     if base == 'USD':
-#         return f"{quote}%3DX"  # URL encoded form of JPY=X
-#     else:
-#         return f"{base}{quote}%3DX"  # URL encoded form of EURUSD=X
-
-# Add the fetch_news function to your main app since it depends on st.session_state
-def fetch_news(currencies=None, use_mock_fallback=True):
-    """Fetch news for currency pairs, with fallback to mock data if needed."""
-    # Create currency pairs from subscriptions
-    if 'subscriptions' not in st.session_state:
-        return []
-        
-    currency_pairs = []
-    for sub in st.session_state.subscriptions:
-        pair = (sub["base"], sub["quote"])
-        if pair not in currency_pairs:
-            currency_pairs.append(pair)
-    
-    if not currency_pairs:
-        return []
-    
-    st.session_state.debug_log = []  # Reset debug log
-    st.session_state.debug_log.append(f"Attempting to fetch news for {len(currency_pairs)} currency pairs")
-    
-    try:
-        # Try to scrape live news from Yahoo Finance
-        with st.spinner("Fetching latest news from Yahoo Finance..."):
-            news_items = scrape_yahoo_finance_news(currency_pairs, debug_log=st.session_state.debug_log)
-        
-        if news_items:
-            add_notification(f"Successfully fetched {len(news_items)} news items from Yahoo Finance", "success")
-            # Cache the news items in session state
-            st.session_state.last_news_fetch = datetime.now()
-            st.session_state.cached_news = news_items
-            return news_items
-        else:
-            st.session_state.debug_log.append("No news items found from Yahoo Finance")
-    except Exception as e:
-        st.session_state.debug_log.append(f"Error fetching news from Yahoo Finance: {str(e)}")
-        add_notification(f"Error fetching news from Yahoo Finance: {str(e)}", "error")
-    
-    # If we got here, either there was an error or no news items were found
-    if use_mock_fallback:
-        add_notification("Using mock news data as fallback", "info")
-        return create_mock_news(currencies)
-    
-    # Use cached news if available
-    if 'cached_news' in st.session_state and st.session_state.cached_news:
-        return st.session_state.cached_news
-    
-    # Return empty list if all else fails
-    return []
-
-# Initialize session state for subscriptions, notifications, and previous rates
-if 'subscriptions' not in st.session_state:
-    st.session_state.subscriptions = [
-        {"base": "EUR", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},
-        {"base": "USD", "quote": "JPY", "threshold": 0.5, "last_rate": None, "current_rate": None},
-        {"base": "GBP", "quote": "EUR", "threshold": 0.5, "last_rate": None, "current_rate": None}
-    ]
 
 if 'notifications' not in st.session_state:
     st.session_state.notifications = []
@@ -188,9 +97,78 @@ available_currencies = {
     'HKD': 'Hong Kong Dollar',
     'SGD': 'Singapore Dollar'
 }
-
 # Fetch API key from environment variables
 API_KEY = os.getenv("CURRENCY_API_KEY")
+
+
+# Add this near the top of your script after st.set_page_config()
+if 'auto_refresh' not in st.session_state:
+    st.session_state.auto_refresh = True  # Default to true
+
+# Get current auto_refresh state from session state
+auto_refresh = st.session_state.auto_refresh
+
+# Add the meta refresh tag if auto_refresh is enabled
+if auto_refresh:
+    st.write(f"<meta http-equiv='refresh' content='60'>", unsafe_allow_html=True)
+    
+
+# Add the fetch_news function to your main app since it depends on st.session_state
+def fetch_news(currencies=None, use_mock_fallback=True):
+    """Fetch news for currency pairs, with fallback to mock data if needed."""
+    if 'subscriptions' not in st.session_state:
+        return []
+
+    currency_pairs = list(set((sub["base"], sub["quote"]) for sub in st.session_state.subscriptions))
+
+    if not currency_pairs:
+        return []
+
+    st.session_state.debug_log = []
+    st.session_state.debug_log.append(f"Attempting to fetch news for {len(currency_pairs)} currency pairs")
+
+    try:
+        with st.spinner("Fetching latest news from Yahoo Finance..."):
+            all_news_items = []
+            for base, quote in currency_pairs:
+                news_items = scrape_yahoo_finance_news([(base, quote)], debug_log=st.session_state.debug_log)
+                for item in news_items:
+                    item["currency_pairs"] = {f"{base}/{quote}"}
+                    all_news_items.append(item)
+
+            if all_news_items:
+                unique_news = {}
+                for item in all_news_items:
+                    key = item.get('url', '') if item.get('url') else item.get('title', '')
+                    if key:
+                        if key in unique_news:
+                            unique_news[key]['currency_pairs'].update(item['currency_pairs'])
+                        else:
+                            unique_news[key] = item
+
+                deduplicated_news = list(unique_news.values())
+                deduplicated_news.sort(key=lambda x: x["timestamp"], reverse=True)
+
+                add_notification(f"Successfully fetched {len(deduplicated_news)} unique news items from Yahoo Finance", "success")
+                st.session_state.last_news_fetch = datetime.now()
+                st.session_state.cached_news = deduplicated_news
+                return deduplicated_news
+            else:
+                st.session_state.debug_log.append("No news items found from Yahoo Finance")
+    except Exception as e:
+        st.session_state.debug_log.append(f"Error fetching news from Yahoo Finance: {str(e)}")
+        add_notification(f"Error fetching news from Yahoo Finance: {str(e)}", "error")
+
+    if use_mock_fallback:
+        add_notification("Using mock news data as fallback", "info")
+        return create_mock_news(currencies)
+
+    if 'cached_news' in st.session_state and st.session_state.cached_news:
+        return st.session_state.cached_news
+
+    return []
+
+
 
 # Function to add a notification
 def add_notification(message, type='system'):
@@ -222,12 +200,23 @@ def update_rates(use_mock_data=False):
                     updated_any = True
             add_notification("Using mock currency data for testing", "info")
         else:
-            # Fetch real data from APIs
-            for base in bases_to_fetch:
-                data = fetch_currency_rates(base, api_key=API_KEY, debug_log=st.session_state.debug_log)
-                if data and base in data:
-                    results[base] = data[base]
-                    updated_any = True
+            # Attempt to fetch real data using the new scraper
+            currency_pairs = [(sub["base"], sub["quote"]) for sub in st.session_state.subscriptions]
+            results = scrape_yahoo_finance_rates(currency_pairs, debug_log=st.session_state.debug_log)
+
+            # Check if any rates were fetched
+            if results:
+                updated_any = True
+
+            # Fallback: If any rates are missing, fetch using the existing API method
+            for sub in st.session_state.subscriptions:
+                base = sub["base"].lower()
+                quote = sub["quote"].lower()
+                if base not in results or quote not in results[base]:
+                    data = fetch_currency_rates(base, api_key=API_KEY, debug_log=st.session_state.debug_log)
+                    if data and base in data:
+                        results[base] = data[base]
+                        updated_any = True
 
         if updated_any:
             # Update subscriptions with new rates
@@ -239,7 +228,7 @@ def update_rates(use_mock_data=False):
                     # Store last rate before updating
                     sub["last_rate"] = sub["current_rate"]
                     sub["current_rate"] = results[base][quote]
-                    
+
                     # Optional: Add small random variations for testing UI updates
                     if 'show_debug' in st.session_state and st.session_state.show_debug and 'add_variations' in st.session_state and st.session_state.add_variations:
                         sub["current_rate"] = update_rates_with_variation(sub["current_rate"])
@@ -580,99 +569,6 @@ with col4:
     else:
         st.info("No news items match your filters")
 
-
-
-
-st.markdown("""
-<style>
-    html, body {
-        background-color: #1e1e1e !important;
-        color: #ffffff;
-    }
-    .main-header {
-        margin-top: -60px;
-        color: #ffffff;
-    }
-    .stAlert {
-        margin-top: -15px;
-    }
-    .currency-card {
-        border: 1px solid #ddd;
-        border-radius: 5px;
-        padding: 15px;
-        margin-bottom: 10px;
-        background-color: #333;
-    }
-    .rate-up {
-        color: #28a745;
-        font-weight: bold;
-    }
-    .rate-down {
-        color: #dc3545;
-        font-weight: bold;
-    }
-    .rate-neutral {
-        color: #6c757d;
-        font-weight: bold;
-    }
-    .news-card {
-        border: 1px solid #ddd;
-        border-radius: 5px;
-        padding: 15px;
-        margin-bottom: 10px;
-        background-color: #333;
-    }
-    .news-positive {
-        border-left: 4px solid #28a745;
-    }
-    .news-negative {
-        border-left: 4px solid #dc3545;
-    }
-    .news-neutral {
-        border-left: 4px solid #6c757d;
-    }
-    .notification {
-        padding: 10px;
-        border-radius: 5px;
-        margin-bottom: 8px;
-    }
-    .notification-price {
-        background-color: #fff3cd;
-        border-left: 4px solid #ffc107;
-    }
-    .notification-system {
-        background-color: #f8f9fa;
-        border-left: 4px solid #6c757d;
-    }
-    .notification-error {
-        background-color: #f8d7da;
-        border-left: 4px solid #dc3545;
-    }
-    .notification-info {
-        background-color: #d1ecf1;
-        border-left: 4px solid #17a2b8;
-    }
-    .notification-success {
-        background-color: #d4edda;
-        border-left: 4px solid #28a745;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-
-
-# # Auto-refresh logic
-# if 'auto_refresh' not in st.session_state:
-#     st.session_state.auto_refresh = True
-#     st.session_state.last_auto_refresh = datetime.now() - timedelta(minutes=2)  # Force initial refresh
-
-# # Check if we need to auto-refresh based on time elapsed
-# current_time = datetime.now()
-# if auto_refresh and (current_time - st.session_state.last_auto_refresh).total_seconds() >= 60:
-#     st.session_state.last_auto_refresh = current_time
-#     with st.spinner("Auto-refreshing rates..."):
-#         update_rates()
-#     st.rerun()  # Use rerun() instead of experimental_rerun()
-
-
-    
+# Include the CSS file
+with open("styles.css") as f:
+    st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)

@@ -1,0 +1,73 @@
+Copy
+/* styles.css */
+body {
+    background-color: #1e1e1e;
+    color: #ffffff;
+}
+.main-header {
+    margin-top: -60px;
+    color: #ffffff;
+}
+.stAlert {
+    margin-top: -15px;
+}
+.currency-card {
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 15px;
+    margin-bottom: 10px;
+    background-color: #333;
+}
+.rate-up {
+    color: #28a745;
+    font-weight: bold;
+}
+.rate-down {
+    color: #dc3545;
+    font-weight: bold;
+}
+.rate-neutral {
+    color: #6c757d;
+    font-weight: bold;
+}
+.news-card {
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 15px;
+    margin-bottom: 10px;
+    background-color: #333;
+}
+.news-positive {
+    border-left: 4px solid #28a745;
+}
+.news-negative {
+    border-left: 4px solid #dc3545;
+}
+.news-neutral {
+    border-left: 4px solid #6c757d;
+}
+.notification {
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 8px;
+}
+.notification-price {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+.notification-system {
+    background-color: #f8f9fa;
+    border-left: 4px solid #6c757d;
+}
+.notification-error {
+    background-color: #f8d7da;
+    border-left: 4px solid #dc3545;
+}
+.notification-info {
+    background-color: #d1ecf1;
+    border-left: 4px solid #17a2b8;
+}
+.notification-success {
+    background-color: #d4edda;
+    border-left: 4px solid #28a745;
+}
