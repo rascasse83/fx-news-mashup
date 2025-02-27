@@ -220,7 +220,7 @@ def update_rates(use_mock_data=False):
 
                 if base in results_lower and quote in results_lower[base]:
                 # if base in results and quote in results[base]:
-                    # print(results_lower[base][quote])
+                    print(results_lower[base][quote])
                     # Store last rate before updating
                     sub["last_rate"] = sub["current_rate"]
                     sub["current_rate"] = results_lower[base][quote]
