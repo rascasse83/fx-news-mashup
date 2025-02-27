@@ -1,0 +1,72 @@
+{'symbol': 'EURUSD=X', 'response': [
+        {'meta': {'currency': 'USD', 'symbol': 'EURUSD=X', 'exchangeName': 'CCY', 'fullExchangeName': 'CCY', 'instrumentType': 'CURRENCY', 'firstTradeDate': 1070236800, 'regularMarketTime': 1740622268, 'hasPrePostMarketData': False, 'gmtoffset': 0, 'timezone': 'GMT', 'exchangeTimezoneName': 'Europe/London', 'regularMarketPrice': 1.0481, 'fiftyTwoWeekHigh': 1.1212, 'fiftyTwoWeekLow': 1.0184, 'regularMarketDayHigh': 1.0495, 'regularMarketDayLow': 1.0476, 'regularMarketVolume': 0, 'longName': 'EUR/USD', 'shortName': 'EUR/USD', 'chartPreviousClose': 1.0491, 'previousClose': 1.0491, 'scale': 4, 'priceHint': 4, 'currentTradingPeriod': {'pre': {'timezone': 'GMT', 'end': 1740614400, 'start': 1740614400, 'gmtoffset': 0
+                    }, 'regular': {'timezone': 'GMT', 'end': 1740700740, 'start': 1740614400, 'gmtoffset': 0
+                    }, 'post': {'timezone': 'GMT', 'end': 1740700740, 'start': 1740700740, 'gmtoffset': 0
+                    }
+                }, 'tradingPeriods': [
+                    [
+                        {'timezone': 'GMT', 'end': 1740700740, 'start': 1740614400, 'gmtoffset': 0
+                        }
+                    ]
+                ], 'dataGranularity': '5m', 'range': '1d', 'validRanges': ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max'
+                ]
+            }, 'timestamp': [
+                1740614400,
+                1740614700,
+                1740615000,
+                1740615300,
+                1740615600,
+                1740615900,
+                1740616200,
+                1740616500,
+                1740616800,
+                1740617100,
+                1740617400,
+                1740617700,
+                1740618000,
+                1740618600,
+                1740618900,
+                1740619200,
+                1740619800,
+                1740620100,
+                1740620700,
+                1740621000,
+                1740621300,
+                1740621600,
+                1740621900,
+                1740622200,
+                1740622268
+            ], 'indicators': {'quote': [
+                    {'close': [
+                            1.0488,
+                            1.0484,
+                            1.0485,
+                            1.0488,
+                            1.0485,
+                            1.0485,
+                            1.0483,
+                            1.0484,
+                            1.0482,
+                            1.0484,
+                            1.0482,
+                            1.048,
+                            1.0477,
+                            1.0479,
+                            1.0481,
+                            1.0479,
+                            1.0481,
+                            1.0481,
+                            1.0485,
+                            1.0484,
+                            1.048,
+                            1.0482,
+                            1.0481,
+                            1.048,
+                            1.0481
+                        ]
+                    }
+                ]
+            }
+        }
+    ]
+}
