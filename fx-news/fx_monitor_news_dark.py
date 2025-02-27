@@ -24,13 +24,26 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize all session state variables
-if 'subscriptions' not in st.session_state:
+# Initialize session state variables only if they don't exist yet
+if 'initialized' not in st.session_state:
+    # Set this flag to prevent reinitialization
+    st.session_state.initialized = True
+    
+    # Initialize all session state variables with their default values
     st.session_state.subscriptions = [
         {"base": "EUR", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},
         {"base": "USD", "quote": "JPY", "threshold": 0.5, "last_rate": None, "current_rate": None},
         {"base": "GBP", "quote": "EUR", "threshold": 0.5, "last_rate": None, "current_rate": None}
     ]
+    st.session_state.notifications = []
+    st.session_state.last_refresh = None
+    st.session_state.last_news_fetch = None
+    st.session_state.cached_news = []
+    st.session_state.rate_history = {}
+    st.session_state.debug_log = []
+    st.session_state.show_debug = False
+    st.session_state.add_variations = False
+    st.session_state.auto_refresh = True
 
 if 'notifications' not in st.session_state:
     st.session_state.notifications = []
