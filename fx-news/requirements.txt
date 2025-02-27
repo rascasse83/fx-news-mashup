@@ -1,4 +1,4 @@
 plotly
 requests
 bs4
-textblob
+streamlit-autorefresh

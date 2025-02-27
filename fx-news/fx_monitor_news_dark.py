@@ -15,6 +15,8 @@ import random
 from scrapers.news_scraper import scrape_yahoo_finance_news, create_mock_news
 from apis.rates_fetch import fetch_currency_rates, update_rates_with_variation, get_mock_currency_rates
 from scrapers.rates_scraper import scrape_yahoo_finance_rates
+from streamlit_autorefresh import st_autorefresh
+import plotly.graph_objects as go
 
 # Configure page
 st.set_page_config(
@@ -29,7 +31,10 @@ for key, default_value in {
     'subscriptions': [
         {"base": "EUR", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},
         {"base": "USD", "quote": "JPY", "threshold": 0.5, "last_rate": None, "current_rate": None},
-        {"base": "GBP", "quote": "EUR", "threshold": 0.5, "last_rate": None, "current_rate": None}
+        {"base": "GBP", "quote": "EUR", "threshold": 0.5, "last_rate": None, "current_rate": None},
+         {"base": "GBP", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},
+         {"base": "EUR", "quote": "CAD", "threshold": 0.5, "last_rate": None, "current_rate": None},
+         {"base": "GBP", "quote": "NZD", "threshold": 0.5, "last_rate": None, "current_rate": None}
     ],
     'notifications': [],
     'last_refresh': None,
@@ -61,8 +66,49 @@ available_currencies = {
     'HKD': 'Hong Kong Dollar',
     'SGD': 'Singapore Dollar'
 }
+
+currency_to_country = {
+    'EUR': [
+        'Austria', 'Belgium', 'Cyprus', 'Estonia', 'Finland', 'France', 'Germany',
+        'Greece', 'Ireland', 'Italy', 'Latvia', 'Lithuania', 'Luxembourg', 'Malta',
+        'Netherlands', 'Portugal', 'Slovakia', 'Slovenia', 'Spain'
+    ],
+    'USD': 'United States',
+    'GBP': 'United Kingdom',
+    'JPY': 'Japan',
+    'AUD': 'Australia',
+    'CAD': 'Canada',
+    'CHF': 'Switzerland',
+    'CNY': 'China',
+    'NZD': 'New Zealand',
+    'HKD': 'Hong Kong',
+    'SGD': 'Singapore',
+    'XAG': 'Global'  # Silver is traded globally
+}
+
 # Fetch API key from environment variables
 API_KEY = os.getenv("CURRENCY_API_KEY")
+
+
+def setup_auto_refresh():
+    """Setup auto-refresh mechanism using streamlit_autorefresh package"""
+    # Only enable auto-refresh if the toggle is on in session state
+    if 'auto_refresh' in st.session_state and st.session_state.auto_refresh:
+        # Set up the 15-second refresh cycle for rates
+        # This returns a counter that increases each time your app reruns
+        count = st_autorefresh(interval=30000, key="rates_refresher")
+        
+        # Process refreshes
+        current_time = datetime.now()
+        
+        # Handle rates refresh (every refresh cycle - 30 seconds)
+        st.session_state.last_auto_refresh_time = current_time
+        update_rates()
+        
+        # Handle news refresh (every 4th refresh cycle - 2 minutes)
+        if count % 4 == 0:  # Every 4th refresh (30 * 4 = 120 seconds)
+            st.session_state.last_news_auto_refresh_time = current_time
+            fetch_news(use_mock_fallback=True)
 
 # Add the fetch_news function to your main app since it depends on st.session_state
 def fetch_news(currencies=None, use_mock_fallback=True):
@@ -208,12 +254,70 @@ def update_rates(use_mock_data=False):
         add_notification(f"Error updating rates: {str(e)}", "error")
         return False
 
+# Function to calculate percentage variation
+def calculate_percentage_variation(subscriptions):
+    variations = []
+    for sub in subscriptions:
+        if sub["last_rate"] is not None and sub["current_rate"] is not None:
+            percent_change = ((sub["current_rate"] - sub["last_rate"]) / sub["last_rate"]) * 100
+            variations.append({
+                "currency_pair": f"{sub['base']}/{sub['quote']}",
+                "base": sub["base"],
+                "quote": sub["quote"],
+                "variation": percent_change
+            })
+    return variations
+
+# Call this function right after your session state initialization
+setup_auto_refresh()
+
 # Main app header
 st.markdown("<h1 class='main-header'>💱 FX Currency Monitor</h1>", unsafe_allow_html=True)
 st.markdown("Real-time FX rates and news sentiment monitoring")
 
+# Calculate percentage variations
+variations = calculate_percentage_variation(st.session_state.subscriptions)
+
+# Prepare data for the geomap
+map_data = []
+for variation in variations:
+    # Use the base currency to determine the location
+    locations = currency_to_country.get(variation["base"], ["Unknown"])
+    for location in locations:
+        map_data.append({
+            "location": location,
+            "variation": variation["variation"]
+        })
+
+# Create the geomap
+fig = go.Figure(data=go.Choropleth(
+    locations=[data["location"] for data in map_data],
+    z=[data["variation"] for data in map_data],
+    locationmode='country names',
+    colorscale='RdBu',
+    colorbar_title="% Variation"
+))
+
+fig.update_layout(
+    geo=dict(
+        showframe=False,
+        showcoastlines=False,
+        projection_type='equirectangular',
+        center=dict(lat=40, lon=-100),  # Center the map around the US and Europe
+        lataxis_range=[-60, 80],  # Keep latitude range from -60 to 80 degrees
+        lonaxis_range=[-160, -40]  # Adjust the longitude range to cover both Europe and the US
+    ),
+    height=400,  # Increase the height for better visibility
+    margin=dict(l=0, r=0, t=0, b=0)
+)
+
+# Display the geomap with full width
+st.plotly_chart(fig, use_container_width=True)
+
+
 # Page layout: Two columns for the main content
-col1, col4 = st.columns([2, 1])
+col1, col4 = st.columns([3, 1])  # Adjust the column widths to give more space to the map
+
 
 # Right sidebar for subscription management
 with st.sidebar:
@@ -251,24 +355,20 @@ with st.sidebar:
     st.button("🔄 Refresh Rates", on_click=update_rates)
     st.button("📰 Refresh News", on_click=lambda: fetch_news(use_mock_fallback=True))
 
-    if st.session_state.last_refresh:
-        st.info(f"Rates updated: {st.session_state.last_refresh.strftime('%H:%M:%S')}")
-    
-    if st.session_state.last_news_fetch:
-        st.info(f"News updated: {st.session_state.last_news_fetch.strftime('%H:%M:%S')}")
-
-    # Auto-refresh toggle
-    auto_refresh = st.checkbox("Auto-refresh (60s)", value=st.session_state.auto_refresh)
+    # Then in your sidebar, for the auto-refresh toggle:
+    auto_refresh = st.sidebar.checkbox("Auto-refresh (Rates: 30s, News: 2min)", value=st.session_state.auto_refresh)
     if auto_refresh != st.session_state.auto_refresh:
         st.session_state.auto_refresh = auto_refresh
-        st.session_state.last_auto_refresh_time = datetime.now()
-    
-    # Add countdown timer if auto-refresh is on
+        # This will force the page to reload with the new auto_refresh setting
+        st.rerun()
+
+    # In your sidebar, show the last refresh times (optional)
     if st.session_state.auto_refresh:
-        current_time = datetime.now()
-        elapsed_time = (current_time - st.session_state.last_auto_refresh_time).total_seconds()
-        remaining_seconds = max(0, 60 - int(elapsed_time))
-        st.caption(f"Next refresh in: {remaining_seconds} seconds")
+        if 'last_auto_refresh_time' in st.session_state and st.session_state.last_auto_refresh_time:
+            st.sidebar.caption(f"Last rates refresh: {st.session_state.last_auto_refresh_time.strftime('%H:%M:%S')}")
+        
+        if 'last_news_auto_refresh_time' in st.session_state and st.session_state.last_news_auto_refresh_time:
+            st.sidebar.caption(f"Last news refresh: {st.session_state.last_news_auto_refresh_time.strftime('%H:%M:%S')}")
 
     # Show notification history
     st.header("Notifications")
@@ -464,7 +564,7 @@ with col4:
             elif time_diff.seconds // 3600 > 0:
                 time_str = f"{time_diff.seconds // 3600}h ago"
             else:
-                time_str = f"{time_diff.seconds // 60}m ago"
+                time_str = f"{time_diff.seconds // 300}m ago"
 
             # Create color based on sentiment
             if item['sentiment'] == 'positive':
@@ -517,21 +617,8 @@ with col4:
         st.info("No news items match your filters")
 
 # Handle auto-refresh at the end of the script
-if st.session_state.auto_refresh:
-    current_time = datetime.now()
-    elapsed_time = (current_time - st.session_state.last_auto_refresh_time).total_seconds()
-    
-    if elapsed_time >= 60:
-        # Update timestamp
-        st.session_state.last_auto_refresh_time = current_time
-        
-        # Update data
-        update_rates()
-        
-        # Check if news needs refresh
-        if (st.session_state.last_news_fetch is None or 
-            (current_time - st.session_state.last_news_fetch).total_seconds() > 900):  # 15 minutes
-            fetch_news(use_mock_fallback=True)
-            
-        # Rerun to refresh the UI
-        st.rerun()
+with st.spinner("Updating currency rates..."):
+    update_rates()
+
+with st.spinner("Fetching the latest news..."):
+    fetch_news(use_mock_fallback=True)   

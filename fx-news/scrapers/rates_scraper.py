@@ -38,7 +38,7 @@ def scrape_yahoo_finance_rates(currency_pairs, debug_log=None):
         try:
             yahoo_symbol = format_currency_pair_for_yahoo(base, quote)
             spark_url = f"https://query1.finance.yahoo.com/v7/finance/spark?includePrePost=false&includeTimestamps=false&indicators=close&interval=5m&range=1d&symbols={yahoo_symbol}&lang=en-GB&region=GB"
-            print(f"Fetching rate for {base}/{quote} from Spark URL: {spark_url}")
+            # print(f"Fetching rate for {base}/{quote} from Spark URL: {spark_url}")
             debug_log.append(f"Fetching rate for {base}/{quote} from Spark URL: {spark_url}")
 
             time.sleep(random.uniform(1, 3))  # Increase delay to mimic human browsing
@@ -53,7 +53,7 @@ def scrape_yahoo_finance_rates(currency_pairs, debug_log=None):
                         if base not in base_rates:
                             base_rates[base] = {}
                         base_rates[base][quote] = rate
-                        print(f"Fetched rate for {base}/{quote} from Spark API: {rate}")
+                        # print(f"Fetched rate for {base}/{quote} from Spark API: {rate}")
                         debug_log.append(f"Fetched rate for {base}/{quote} from Spark API: {rate}")
                     else:
                         print(f"No regularMarketPrice found in Spark API response for {base}/{quote}")
@@ -67,7 +67,7 @@ def scrape_yahoo_finance_rates(currency_pairs, debug_log=None):
 
                 # Fallback: Use the existing scraping method
                 url = f"https://uk.finance.yahoo.com/quote/{yahoo_symbol}?{random.random()}"
-                print(f"Fetching rate for {base}/{quote} from URL: {url}")
+                # print(f"Fetching rate for {base}/{quote} from URL: {url}")
                 debug_log.append(f"Fetching rate for {base}/{quote} from URL: {url}")
 
                 response = requests.get(url, headers=headers)
@@ -77,7 +77,7 @@ def scrape_yahoo_finance_rates(currency_pairs, debug_log=None):
                     # Debug: Print the page content to inspect
                     with open("debug_page.html", "w", encoding="utf-8") as file:
                         file.write(soup.prettify())
-                    print(f"Page content saved to debug_page.html for {base}/{quote}")
+                    # print(f"Page content saved to debug_page.html for {base}/{quote}")
 
                     # Find the fin-streamer tag with the correct data-symbol attribute
                     fin_streamer_tag = soup.find('fin-streamer', {'data-field': "regularMarketDayRange", 'data-symbol': re.compile(rf'{base}{quote}=X')})
@@ -89,10 +89,10 @@ def scrape_yahoo_finance_rates(currency_pairs, debug_log=None):
                         if base not in base_rates:
                             base_rates[base] = {}
                         base_rates[base][quote] = rate
-                        print(f"Fetched rate for {base}/{quote}: {rate}")
+                        # print(f"Fetched rate for {base}/{quote}: {rate}")
                         debug_log.append(f"Fetched rate for {base}/{quote}: {rate}")
                     else:
-                        print(f"fin-streamer tag with data-symbol {yahoo_symbol} not found")
+                        # print(f"fin-streamer tag with data-symbol {yahoo_symbol} not found")
                         debug_log.append(f"fin-streamer tag with data-symbol {yahoo_symbol} not found")
                 else:
                     print(f"Failed to fetch data for {base}/{quote}: {response.status_code}")
