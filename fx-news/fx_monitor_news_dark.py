@@ -20,7 +20,7 @@ import plotly.graph_objects as go
 
 # Configure page
 st.set_page_config(
-    page_title="FX Currency Monitor",
+    page_title="FX Pulse",
     page_icon="💱",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -272,7 +272,7 @@ def calculate_percentage_variation(subscriptions):
 setup_auto_refresh()
 
 # Main app header
-st.markdown("<h1 class='main-header'>💱 FX Currency Monitor</h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='main-header'>💱 FX-Pulse</h1>", unsafe_allow_html=True)
 st.markdown("Real-time FX rates and news sentiment monitoring")
 
 # Calculate percentage variations
@@ -290,30 +290,81 @@ for variation in variations:
         })
 
 # Create the geomap
-fig = go.Figure(data=go.Choropleth(
-    locations=[data["location"] for data in map_data],
-    z=[data["variation"] for data in map_data],
-    locationmode='country names',
-    colorscale='RdBu',
-    colorbar_title="% Variation"
-))
+# Conditionally display the geomaps
+if map_data:
+    # Create a layout with three columns
+    col1, col2, col3 = st.columns(3)
 
-fig.update_layout(
-    geo=dict(
-        showframe=False,
-        showcoastlines=False,
-        projection_type='mercator',  # Change projection to 'mercator' for a more even distribution
-        center=dict(lat=40, lon=-100),  # Center between Europe and the US
-        lataxis_range=[-60, 80],  # Latitude range to show a wide view
-        lonaxis_range=[-160, -40],  # Longitude range for both Europe and the US
-    ),
-    height=600,  # Increase height for better visibility
-    width=1200,  # Increase width to make the map wider
-    margin=dict(l=0, r=0, t=0, b=0)  # Remove margins to use full screen
-)
+    # Map for the US continent
+    with col1:
+        fig_us = go.Figure(data=go.Choropleth(
+            locations=[data["location"] for data in map_data if data["location"] in ['United States', 'Canada', 'Mexico']],
+            z=[data["variation"] for data in map_data if data["location"] in ['United States', 'Canada', 'Mexico']],
+            locationmode='country names',
+            colorscale='RdBu',
+            colorbar_title="% Variation"
+        ))
 
-# Display the geomap with full width
-st.plotly_chart(fig, use_container_width=True)
+        fig_us.update_layout(
+            geo=dict(
+                showframe=False,
+                showcoastlines=False,
+                projection_type='equirectangular',
+                center=dict(lat=37.0902, lon=-95.7129),  # Center around the US
+            ),
+            height=300,
+            margin=dict(l=0, r=0, t=0, b=0)
+        )
+
+        st.plotly_chart(fig_us, use_container_width=True)
+
+    # Map for Europe
+    with col2:
+        fig_europe = go.Figure(data=go.Choropleth(
+            locations=[data["location"] for data in map_data if data["location"] in currency_to_country['EUR']],
+            z=[data["variation"] for data in map_data if data["location"] in currency_to_country['EUR']],
+            locationmode='country names',
+            colorscale='RdBu',
+            colorbar_title="% Variation"
+        ))
+
+        fig_europe.update_layout(
+            geo=dict(
+                showframe=False,
+                showcoastlines=False,
+                projection_type='equirectangular',
+                center=dict(lat=54.5260, lon=15.2551),  # Center around Europe
+            ),
+            height=300,
+            margin=dict(l=0, r=0, t=0, b=0)
+        )
+
+        st.plotly_chart(fig_europe, use_container_width=True)
+
+    # Map for Asia
+    with col3:
+        fig_asia = go.Figure(data=go.Choropleth(
+            locations=[data["location"] for data in map_data if data["location"] in ['Japan', 'China', 'India', 'Singapore', 'Hong Kong']],
+            z=[data["variation"] for data in map_data if data["location"] in ['Japan', 'China', 'India', 'Singapore', 'Hong Kong']],
+            locationmode='country names',
+            colorscale='RdBu',
+            colorbar_title="% Variation"
+        ))
+
+        fig_asia.update_layout(
+            geo=dict(
+                showframe=False,
+                showcoastlines=False,
+                projection_type='equirectangular',
+                center=dict(lat=34.0479, lon=100.6197),  # Center around Asia
+            ),
+            height=300,
+            margin=dict(l=0, r=0, t=0, b=0)
+        )
+
+        st.plotly_chart(fig_asia, use_container_width=True)
+else:
+    st.info("No data available to display on the maps. Please add subscriptions and wait for data to be fetched.")
 
 
 # Page layout: Two columns for the main content
