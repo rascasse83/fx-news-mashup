@@ -378,7 +378,7 @@ with col1:
                 if st.button("Remove", key=f"remove_{key_base}"):
                     st.session_state.subscriptions.pop(i)
                     add_notification(f"Removed subscription: {sub['base']}/{sub['quote']}", "system")
-                    st.experimental_rerun()
+                    st.rerun()
 
             # Rate information
             if sub["current_rate"] is not None:
