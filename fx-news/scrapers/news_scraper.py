@@ -60,7 +60,7 @@ def scrape_yahoo_finance_news(currency_pairs, max_articles=5, debug_log=None):
         try:
             # Format currency pair for Yahoo Finance URL
             yahoo_symbol = format_currency_pair_for_yahoo(base, quote)
-            url = f"http://uk.finance.yahoo.com/quote/{yahoo_symbol}/news?{random.random()}"
+            url = f"https://finance.yahoo.com/quote/{yahoo_symbol}/news?{random.random()}"
             print(f"Fetching news for {base}/{quote} from URL: {url}")  # Console logging
             debug_log.append(f"Fetching news for {base}/{quote} from URL: {url}")
             
