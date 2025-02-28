@@ -2,3 +2,4 @@ plotly
 requests
 bs4
 streamlit-autorefresh
+textblob
