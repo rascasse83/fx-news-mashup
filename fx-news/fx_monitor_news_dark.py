@@ -21,7 +21,8 @@ import plotly.graph_objects as go
 # Configure page
 st.set_page_config(
     page_title="FX Pulse",
-    page_icon="💱",
+    # page_icon="💱",
+    page_icon="https://images.seeklogo.com/logo-png/60/1/lmax-digital-icon-black-logo-png_seeklogo-609777.png",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -34,7 +35,9 @@ for key, default_value in {
         {"base": "GBP", "quote": "EUR", "threshold": 0.5, "last_rate": None, "current_rate": None},
          {"base": "GBP", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},
          {"base": "EUR", "quote": "CAD", "threshold": 0.5, "last_rate": None, "current_rate": None},
-         {"base": "GBP", "quote": "NZD", "threshold": 0.5, "last_rate": None, "current_rate": None}
+         {"base": "GBP", "quote": "NZD", "threshold": 0.5, "last_rate": None, "current_rate": None},
+         {"base": "CNY", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},
+         {"base": "JPY", "quote": "CNY", "threshold": 0.5, "last_rate": None, "current_rate": None}
     ],
     'notifications': [],
     'last_refresh': None,
@@ -271,9 +274,15 @@ def calculate_percentage_variation(subscriptions):
 # Call this function right after your session state initialization
 setup_auto_refresh()
 
-# Main app header
-st.markdown("<h1 class='main-header'>💱 FX-Pulse</h1>", unsafe_allow_html=True)
+# # Display the logo
+# logo_url = ""
+# st.image(logo_url, width=50, align=right)
+
+# Main app header with logo
+st.markdown("<h1 class='main-header'>💱 FX Currency Monitor</h1>", unsafe_allow_html=True)
 st.markdown("Real-time FX rates and news sentiment monitoring")
+
+
 
 # Calculate percentage variations
 variations = calculate_percentage_variation(st.session_state.subscriptions)
@@ -289,7 +298,6 @@ for variation in variations:
             "variation": variation["variation"]
         })
 
-# Create the geomap
 # Conditionally display the geomaps
 if map_data:
     # Create a layout with three columns
@@ -302,7 +310,9 @@ if map_data:
             z=[data["variation"] for data in map_data if data["location"] in ['United States', 'Canada', 'Mexico']],
             locationmode='country names',
             colorscale='RdBu',
-            colorbar_title="% Variation"
+            colorbar_title="% Variation",
+            text=[f'{data["variation"]:.2f}%' for data in map_data if data["location"] in ['United States', 'Canada', 'Mexico']],  # Display variation as text
+            hoverinfo='text'  # Show only text on hover
         ))
 
         fig_us.update_layout(
@@ -311,6 +321,7 @@ if map_data:
                 showcoastlines=False,
                 projection_type='equirectangular',
                 center=dict(lat=37.0902, lon=-95.7129),  # Center around the US
+                scope='north america'  # Focus on North America
             ),
             height=300,
             margin=dict(l=0, r=0, t=0, b=0)
@@ -325,7 +336,9 @@ if map_data:
             z=[data["variation"] for data in map_data if data["location"] in currency_to_country['EUR']],
             locationmode='country names',
             colorscale='RdBu',
-            colorbar_title="% Variation"
+            colorbar_title="% Variation",
+            text=[f'{data["variation"]:.2f}%' for data in map_data if data["location"] in currency_to_country['EUR']],  # Display variation as text
+            hoverinfo='text'  # Show only text on hover
         ))
 
         fig_europe.update_layout(
@@ -334,6 +347,7 @@ if map_data:
                 showcoastlines=False,
                 projection_type='equirectangular',
                 center=dict(lat=54.5260, lon=15.2551),  # Center around Europe
+                scope='europe'  # Focus on Europe
             ),
             height=300,
             margin=dict(l=0, r=0, t=0, b=0)
@@ -341,14 +355,16 @@ if map_data:
 
         st.plotly_chart(fig_europe, use_container_width=True)
 
-    # Map for Asia
+    # Map for Asia (focusing on China)
     with col3:
         fig_asia = go.Figure(data=go.Choropleth(
-            locations=[data["location"] for data in map_data if data["location"] in ['Japan', 'China', 'India', 'Singapore', 'Hong Kong']],
-            z=[data["variation"] for data in map_data if data["location"] in ['Japan', 'China', 'India', 'Singapore', 'Hong Kong']],
+            locations=[data["location"] for data in map_data if data["location"] in ['China', 'Japan', 'India', 'Singapore', 'Hong Kong']],
+            z=[data["variation"] for data in map_data if data["location"] in ['China', 'Japan', 'India', 'Singapore', 'Hong Kong']],
             locationmode='country names',
             colorscale='RdBu',
-            colorbar_title="% Variation"
+            colorbar_title="% Variation",
+            text=[f'{data["variation"]:.2f}%' for data in map_data if data["location"] in ['China', 'Japan', 'India', 'Singapore', 'Hong Kong']],  # Display variation as text
+            hoverinfo='text'  # Show only text on hover
         ))
 
         fig_asia.update_layout(
@@ -356,7 +372,8 @@ if map_data:
                 showframe=False,
                 showcoastlines=False,
                 projection_type='equirectangular',
-                center=dict(lat=34.0479, lon=100.6197),  # Center around Asia
+                center=dict(lat=35.8617, lon=104.1954),  # Center around China
+                scope='asia'  # Focus on Asia
             ),
             height=300,
             margin=dict(l=0, r=0, t=0, b=0)
