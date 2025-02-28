@@ -37,7 +37,8 @@ for key, default_value in {
          {"base": "EUR", "quote": "CAD", "threshold": 0.5, "last_rate": None, "current_rate": None},
          {"base": "GBP", "quote": "NZD", "threshold": 0.5, "last_rate": None, "current_rate": None},
          {"base": "CNY", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},
-         {"base": "JPY", "quote": "CNY", "threshold": 0.5, "last_rate": None, "current_rate": None}
+         {"base": "JPY", "quote": "CNY", "threshold": 0.5, "last_rate": None, "current_rate": None},
+         {"base": "JPY", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None}
     ],
     'notifications': [],
     'last_refresh': None,
@@ -109,7 +110,7 @@ def setup_auto_refresh():
         update_rates()
         
         # Handle news refresh (every 4th refresh cycle - 2 minutes)
-        if count % 4 == 0:  # Every 4th refresh (30 * 4 = 120 seconds)
+        if count % 10 == 0:  # Every 4th refresh (30 * 10 = 300 seconds)
             st.session_state.last_news_auto_refresh_time = current_time
             fetch_news(use_mock_fallback=True)
 
@@ -425,7 +426,7 @@ with st.sidebar:
     st.button("📰 Refresh News", on_click=lambda: fetch_news(use_mock_fallback=True))
 
     # Then in your sidebar, for the auto-refresh toggle:
-    auto_refresh = st.sidebar.checkbox("Auto-refresh (Rates: 30s, News: 2min)", value=st.session_state.auto_refresh)
+    auto_refresh = st.sidebar.checkbox("Auto-refresh (Rates: 30s, News: 5min)", value=st.session_state.auto_refresh)
     if auto_refresh != st.session_state.auto_refresh:
         st.session_state.auto_refresh = auto_refresh
         # This will force the page to reload with the new auto_refresh setting
