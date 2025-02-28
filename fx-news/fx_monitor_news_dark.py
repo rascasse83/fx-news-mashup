@@ -72,12 +72,11 @@ available_currencies = {
 }
 
 currency_to_country = {
-    # 'EUR': [
-    #     'Austria', 'Belgium', 'Cyprus', 'Estonia', 'Finland', 'France', 'Germany',
-    #     'Greece', 'Ireland', 'Italy', 'Latvia', 'Lithuania', 'Luxembourg', 'Malta',
-    #     'Netherlands', 'Portugal', 'Slovakia', 'Slovenia', 'Spain'
-    # ],
-    'EUR': 'France',
+    'EUR': [
+        'Austria', 'Belgium', 'Cyprus', 'Estonia', 'Finland', 'France', 'Germany',
+        'Greece', 'Ireland', 'Italy', 'Latvia', 'Lithuania', 'Luxembourg', 'Malta',
+        'Netherlands', 'Portugal', 'Slovakia', 'Slovenia', 'Spain'
+    ],
     'USD': 'United States',
     'GBP': 'United Kingdom',
     'JPY': 'Japan',
