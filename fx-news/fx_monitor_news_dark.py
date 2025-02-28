@@ -30,15 +30,15 @@ st.set_page_config(
 # Initialize session state only once
 for key, default_value in {
     'subscriptions': [
-        {"base": "EUR", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},
-        {"base": "USD", "quote": "JPY", "threshold": 0.5, "last_rate": None, "current_rate": None},
-        {"base": "GBP", "quote": "EUR", "threshold": 0.5, "last_rate": None, "current_rate": None},
-         {"base": "GBP", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},
-         {"base": "EUR", "quote": "CAD", "threshold": 0.5, "last_rate": None, "current_rate": None},
-         {"base": "GBP", "quote": "NZD", "threshold": 0.5, "last_rate": None, "current_rate": None},
-         {"base": "CNY", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},
-         {"base": "JPY", "quote": "CNY", "threshold": 0.5, "last_rate": None, "current_rate": None},
-         {"base": "JPY", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None}
+        {"base": "EUR", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None},
+        {"base": "USD", "quote": "JPY", "threshold": 0.01, "last_rate": None, "current_rate": None},
+        {"base": "GBP", "quote": "EUR", "threshold": 0.01, "last_rate": None, "current_rate": None},
+         {"base": "GBP", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None},
+         {"base": "EUR", "quote": "CAD", "threshold": 0.01, "last_rate": None, "current_rate": None},
+         {"base": "GBP", "quote": "NZD", "threshold": 0.01, "last_rate": None, "current_rate": None},
+         {"base": "CNY", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None},
+         {"base": "JPY", "quote": "CNY", "threshold": 0.01, "last_rate": None, "current_rate": None},
+         {"base": "JPY", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None}
     ],
     'notifications': [],
     'last_refresh': None,
@@ -72,11 +72,12 @@ available_currencies = {
 }
 
 currency_to_country = {
-    'EUR': [
-        'Austria', 'Belgium', 'Cyprus', 'Estonia', 'Finland', 'France', 'Germany',
-        'Greece', 'Ireland', 'Italy', 'Latvia', 'Lithuania', 'Luxembourg', 'Malta',
-        'Netherlands', 'Portugal', 'Slovakia', 'Slovenia', 'Spain'
-    ],
+    # 'EUR': [
+    #     'Austria', 'Belgium', 'Cyprus', 'Estonia', 'Finland', 'France', 'Germany',
+    #     'Greece', 'Ireland', 'Italy', 'Latvia', 'Lithuania', 'Luxembourg', 'Malta',
+    #     'Netherlands', 'Portugal', 'Slovakia', 'Slovenia', 'Spain'
+    # ],
+    'EUR': 'France',
     'USD': 'United States',
     'GBP': 'United Kingdom',
     'JPY': 'Japan',
@@ -181,6 +182,18 @@ def add_notification(message, type='system'):
     # Keep only the 20 most recent notifications
     if len(st.session_state.notifications) > 20:
         st.session_state.notifications = st.session_state.notifications[:20]
+
+    #https://pixabay.com/sound-effects/search/ai%20generated/
+    # Play buzz sound for alert notifications
+    if type == 'price':
+        st.markdown(
+            """
+            <audio autoplay>
+                <source src="price_sound.mp3" type="audio/mpeg">
+            </audio>
+            """,
+            unsafe_allow_html=True
+        )
 
 # Update the update_rates function to use the new module
 def update_rates(use_mock_data=False):
