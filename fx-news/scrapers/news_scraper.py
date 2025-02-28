@@ -37,8 +37,17 @@ def scrape_yahoo_finance_news(currency_pairs, max_articles=5, debug_log=None):
     Scrape news from Yahoo Finance for specified currency pairs
     """
     all_news = []
+    user_agents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0'
+    ]
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        'User-Agent': random.choice(user_agents),
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
     }
     
     if debug_log is None:
@@ -50,7 +59,7 @@ def scrape_yahoo_finance_news(currency_pairs, max_articles=5, debug_log=None):
         try:
             # Format currency pair for Yahoo Finance URL
             yahoo_symbol = format_currency_pair_for_yahoo(base, quote)
-            url = f"https://uk.finance.yahoo.com/quote/{yahoo_symbol}/news/"
+            url = f"https://uk.finance.yahoo.com/quote/{yahoo_symbol}/news/?{random.random()}"
             print(f"Fetching news for {base}/{quote} from URL: {url}")  # Console logging
             debug_log.append(f"Fetching news for {base}/{quote} from URL: {url}")
             
