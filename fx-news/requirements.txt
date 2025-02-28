@@ -3,3 +3,4 @@ requests
 bs4
 streamlit-autorefresh
 textblob
+logging
