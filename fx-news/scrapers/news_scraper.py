@@ -40,26 +40,25 @@ def format_currency_pair_for_yahoo(base, quote):
     """
     Format currency pair for Yahoo Finance URL
     
-    Examples:
-    - EUR/USD -> EURUSD=X
-    - USD/JPY -> JPY=X (when base is USD, only quote currency is used)
-    
     Args:
-        base: Base currency code (e.g., 'EUR')
-        quote: Quote currency code (e.g., 'USD')
+        base: Base currency code (e.g., 'EUR', 'BTC')
+        quote: Quote currency code (e.g., 'USD', 'JPY')
         
     Returns:
-        Formatted symbol for Yahoo Finance URL
+        Formatted symbol for Yahoo Finance
     """
-    # Convert to uppercase for consistency
     base = base.upper()
     quote = quote.upper()
     
-    # Different format when base currency is USD
-    if base == 'USD':
-        return f"{quote}%3DX"  # URL encoded form of JPY=X
+    # Handle cryptocurrencies (BTC-USD, ETH-USD, etc.)
+    crypto_currencies = ['BTC', 'ETH', 'XRP', 'LTC', 'BCH', 'ADA', 'DOT', 'LINK', 'XLM', 'DOGE', 'SOL']
+    
+    if base in crypto_currencies and quote == 'USD':
+        return f"{base}-{quote}"
+    elif base == 'USD':
+        return f"{quote}%3DX"
     else:
-        return f"{base}{quote}%3DX"  # URL encoded form of EURUSD=X
+        return f"{base}{quote}%3DX"
 
 def scrape_yahoo_finance_news(currency_pairs, max_articles=5, debug_log=None):
     """

@@ -20,7 +20,7 @@ import plotly.graph_objects as go
 
 # Configure page
 st.set_page_config(
-    page_title="FX Pulse",
+    page_title="FX Pulsar",
     # page_icon="💱",
     page_icon="https://images.seeklogo.com/logo-png/60/1/lmax-digital-icon-black-logo-png_seeklogo-609777.png",
     layout="wide",
@@ -33,19 +33,21 @@ for key, default_value in {
         {"base": "EUR", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None},
         {"base": "USD", "quote": "JPY", "threshold": 0.01, "last_rate": None, "current_rate": None},
         {"base": "GBP", "quote": "EUR", "threshold": 0.01, "last_rate": None, "current_rate": None},
-         {"base": "GBP", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None},
-         {"base": "EUR", "quote": "CAD", "threshold": 0.01, "last_rate": None, "current_rate": None},
-         {"base": "GBP", "quote": "NZD", "threshold": 0.01, "last_rate": None, "current_rate": None},
+        # {"base": "GBP", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None},
+        # {"base": "EUR", "quote": "CAD", "threshold": 0.01, "last_rate": None, "current_rate": None},
+        # {"base": "GBP", "quote": "NZD", "threshold": 0.01, "last_rate": None, "current_rate": None},
          {"base": "CNY", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None},
          {"base": "JPY", "quote": "CNY", "threshold": 0.01, "last_rate": None, "current_rate": None},
-         {"base": "JPY", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None}
+       #  {"base": "JPY", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None},
+         {"base": "BTC", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None},
+         {"base": "ETH", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None}
     ],
     'notifications': [],
     'last_refresh': None,
     'last_news_fetch': None, 
     'cached_news': [],
     'rate_history': {},
-    'debug_log': [],
+    'debug_log': True,
     'show_debug': False,
     'add_variations': False,
     'auto_refresh': True,
@@ -100,17 +102,18 @@ def setup_auto_refresh():
     if 'auto_refresh' in st.session_state and st.session_state.auto_refresh:
         # Set up the 15-second refresh cycle for rates
         # This returns a counter that increases each time your app reruns
-        count = st_autorefresh(interval=60000, key="rates_refresher")
+        count = st_autorefresh(interval=15000, key="rates_refresher")
         
         # Process refreshes
         current_time = datetime.now()
         
-        # Handle rates refresh (every refresh cycle - 30 seconds)
+        # Handle rates refresh (every refresh cycle - 15 seconds)
         st.session_state.last_auto_refresh_time = current_time
         update_rates()
         
-        # Handle news refresh (every 10th refresh cycle - 10 minutes)
-        if count % 10 == 0:  # Every 10th refresh (60 * 10 = 600 seconds = 10 minutes)
+        # Handle news refresh (every 10th refresh cycle - 150 seconds = 2.5 minutes)
+        # We'll use the counter provided by st_autorefresh to determine when to refresh news
+        if count % 20 == 0:
             st.session_state.last_news_auto_refresh_time = current_time
             fetch_news(use_mock_fallback=True)
 
@@ -194,7 +197,14 @@ def add_notification(message, type='system'):
             unsafe_allow_html=True
         )
 
-# Update the update_rates function to use the new module
+# separate function for manual refresh that can also fetch news
+def manual_refresh_rates_and_news():
+    """Function for manual refresh button that updates rates and then optionally fetches news"""
+    success = update_rates()
+    if success:
+        fetch_news(use_mock_fallback=True)
+
+# Function to update rates with fixed logic for handling the new data format
 def update_rates(use_mock_data=False):
     try:
         updated_any = False
@@ -211,7 +221,7 @@ def update_rates(use_mock_data=False):
                     updated_any = True
             add_notification("Using mock currency data for testing", "info")
         else:
-            # Attempt to fetch real data using the new scraper
+            # Use the optimized scraper method
             currency_pairs = [(sub["base"], sub["quote"]) for sub in st.session_state.subscriptions]
             results = scrape_yahoo_finance_rates(currency_pairs, debug_log=st.session_state.debug_log)
             # Check if any rates were fetched
@@ -224,19 +234,23 @@ def update_rates(use_mock_data=False):
                 base = sub["base"].lower()
                 quote = sub["quote"].lower()
 
-                # Normalize results keys to lowercase for case-insensitive comparison
-                results_lower = {k.lower(): {kk.lower(): vv for kk, vv in v.items()} for k, v in results.items()}
+                # Create normalized results keys dictionary for case-insensitive comparison
+                results_lower = {}
+                for k, v in results.items():
+                    results_lower[k.lower()] = {}
+                    for kk, vv in v.items():
+                        results_lower[k.lower()][kk.lower()] = vv
 
                 if base in results_lower and quote in results_lower[base]:
                     rate_data = results_lower[base][quote]
                     
-                    # Handle the new dictionary format with price and previous_close
+                    # Handle both new dictionary format and old scalar format
                     if isinstance(rate_data, dict) and "price" in rate_data:
-                        # Store the previous close value directly in the subscription
+                        # New format with price and previous_close
                         sub["previous_close"] = rate_data.get("previous_close")
                         sub["current_rate"] = rate_data["price"]
                     else:
-                        # Backward compatibility with old format
+                        # Old format with just a rate value
                         sub["last_rate"] = sub["current_rate"]
                         sub["current_rate"] = rate_data
 
@@ -258,7 +272,12 @@ def update_rates(use_mock_data=False):
                         st.session_state.rate_history[pair_key] = st.session_state.rate_history[pair_key][-100:]
 
                     # Check for threshold breach using previous_close if available
-                    reference_price = sub.get("previous_close", sub.get("last_rate"))
+                    reference_price = None
+                    if sub.get("previous_close") is not None:
+                        reference_price = sub["previous_close"]
+                    elif sub.get("last_rate") is not None:
+                        reference_price = sub["last_rate"]
+                        
                     if reference_price is not None and sub["current_rate"] is not None:
                         percent_change = abs((sub["current_rate"] - reference_price) / reference_price * 100)
                         if percent_change > sub["threshold"]:
@@ -289,9 +308,13 @@ def calculate_percentage_variation(subscriptions):
     for sub in subscriptions:
         # Check if current_rate exists
         if sub["current_rate"] is not None:
-            # Use previous_close from rate data if it exists, otherwise fall back to last_rate
-            previous_rate = sub.get("previous_close", sub.get("last_rate"))
-            
+            # Determine the previous rate to use for comparison
+            previous_rate = None
+            if sub.get("previous_close") is not None:
+                previous_rate = sub["previous_close"]
+            elif sub.get("last_rate") is not None:
+                previous_rate = sub["last_rate"]
+                
             # Only calculate variation if we have a valid previous rate
             if previous_rate is not None:
                 percent_change = ((sub["current_rate"] - previous_rate) / previous_rate) * 100
@@ -299,12 +322,11 @@ def calculate_percentage_variation(subscriptions):
                     "currency_pair": f"{sub['base']}/{sub['quote']}",
                     "base": sub["base"],
                     "quote": sub["quote"],
-                    "variation": percent_change,
-                    "current_rate": sub["current_rate"],
-                    "previous_rate": previous_rate
+                    "variation": percent_change
                 })
     return variations
 
+# Prepare data for the geomap
 def prepare_map_data(variations, currency_to_country):
     map_data = []
     
@@ -399,6 +421,7 @@ with st.sidebar:
     # Manual refresh button
     st.button("🔄 Refresh Rates", on_click=update_rates)
     st.button("📰 Refresh News", on_click=lambda: fetch_news(use_mock_fallback=True))
+    st.button("🔄📰 Refresh Both", on_click=manual_refresh_rates_and_news)
 
     # Then in your sidebar, for the auto-refresh toggle:
     auto_refresh = st.sidebar.checkbox("Auto-refresh (Rates: 30s, News: 5min)", value=st.session_state.auto_refresh)
@@ -449,6 +472,45 @@ with st.sidebar:
             </div>""",
             unsafe_allow_html=True
         )
+
+
+# Debug helper function - add this to help troubleshoot
+def debug_rates_data(subscriptions):
+    """Print debug information about the rates data structure"""
+    debug_info = []
+    for i, sub in enumerate(subscriptions):
+        debug_info.append(f"Subscription {i+1}: {sub['base']}/{sub['quote']}")
+        debug_info.append(f"  current_rate: {sub.get('current_rate')}")
+        debug_info.append(f"  previous_close: {sub.get('previous_close')}")
+        debug_info.append(f"  last_rate: {sub.get('last_rate')}")
+        
+        # Determine which value would be used for variation calculation
+        previous_rate = None
+        if sub.get("previous_close") is not None:
+            previous_rate = sub["previous_close"]
+            source = "previous_close"
+        elif sub.get("last_rate") is not None:
+            previous_rate = sub["last_rate"]
+            source = "last_rate"
+        else:
+            source = "none"
+            
+        debug_info.append(f"  previous_rate for calculation: {previous_rate} (source: {source})")
+        
+        if previous_rate is not None and sub.get("current_rate") is not None:
+            percent_change = ((sub["current_rate"] - previous_rate) / previous_rate) * 100
+            debug_info.append(f"  calculated variation: {percent_change:.4f}%")
+        else:
+            debug_info.append(f"  calculated variation: N/A (missing data)")
+            
+    return "\n".join(debug_info)
+
+# Usage in your main app:
+# Add this button to help debug the issue
+if 'show_debug' in st.session_state and st.session_state.show_debug:
+    if st.button("Debug Rates Data"):
+        debug_text = debug_rates_data(st.session_state.subscriptions)
+        st.text_area("Rate Data Diagnostics", debug_text, height=400)
 
 # Calculate percentage variations
 variations = calculate_percentage_variation(st.session_state.subscriptions)
@@ -577,7 +639,6 @@ with col4:
         with st.spinner("Fetching initial rates..."):
             update_rates()
 
-    # Display each subscription's rate
     for i, sub in enumerate(st.session_state.subscriptions):
         # Create a unique key for this subscription
         key_base = f"{sub['base']}_{sub['quote']}_{i}"
@@ -596,24 +657,43 @@ with col4:
 
             # Rate information
             if sub["current_rate"] is not None:
-                # Format the rate with appropriate decimal places
+                # Format the current rate with appropriate decimal places
                 if sub["current_rate"] < 0.01:
                     formatted_rate = f"{sub['current_rate']:.6f}"
                 elif sub["current_rate"] < 1:
                     formatted_rate = f"{sub['current_rate']:.4f}"
                 else:
                     formatted_rate = f"{sub['current_rate']:.4f}"
+                
+                # Format the previous close rate if available
+                previous_rate_text = "N/A"
+                if sub.get("previous_close") is not None:
+                    prev_rate = sub["previous_close"]
+                    if prev_rate < 0.01:
+                        previous_rate_text = f"{prev_rate:.6f}"
+                    elif prev_rate < 1:
+                        previous_rate_text = f"{prev_rate:.4f}"
+                    else:
+                        previous_rate_text = f"{prev_rate:.4f}"
 
                 # Determine rate direction and color
                 direction_arrow = ""
                 color = "gray"
                 direction_class = "rate-neutral"
-                if sub["last_rate"] is not None:
-                    if sub["current_rate"] > sub["last_rate"]:
+                
+                # Use previous_close if available, otherwise fall back to last_rate
+                reference_rate = None
+                if sub.get("previous_close") is not None:
+                    reference_rate = sub["previous_close"]
+                elif sub.get("last_rate") is not None:
+                    reference_rate = sub["last_rate"]
+                    
+                if reference_rate is not None:
+                    if sub["current_rate"] > reference_rate:
                         direction_arrow = "▲"
                         color = "green"
                         direction_class = "rate-up"
-                    elif sub["current_rate"] < sub["last_rate"]:
+                    elif sub["current_rate"] < reference_rate:
                         direction_arrow = "▼"
                         color = "red"
                         direction_class = "rate-down"
@@ -624,12 +704,16 @@ with col4:
                     <span>Current Rate:</span>
                     <span class="{direction_class}">{formatted_rate} {direction_arrow}</span>
                 </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                    <span>Previous Close:</span>
+                    <span style="color: #6c757d;">{previous_rate_text}</span>
+                </div>
                 """
                 st.markdown(html, unsafe_allow_html=True)
 
                 # Add percent change if available
-                if sub["last_rate"] is not None:
-                    percent_change = ((sub["current_rate"] - sub["last_rate"]) / sub["last_rate"]) * 100
+                if reference_rate is not None:
+                    percent_change = ((sub["current_rate"] - reference_rate) / reference_rate) * 100
                     change_color = "green" if percent_change > 0 else "red" if percent_change < 0 else "gray"
                     sign = "+" if percent_change > 0 else ""
                     st.markdown(f"**Change:** <span style='color:{change_color};font-weight:bold;'>{sign}{percent_change:.4f}%</span>", unsafe_allow_html=True)
