@@ -100,7 +100,7 @@ def setup_auto_refresh():
     if 'auto_refresh' in st.session_state and st.session_state.auto_refresh:
         # Set up the 15-second refresh cycle for rates
         # This returns a counter that increases each time your app reruns
-        count = st_autorefresh(interval=30000, key="rates_refresher")
+        count = st_autorefresh(interval=60000, key="rates_refresher")
         
         # Process refreshes
         current_time = datetime.now()
@@ -109,8 +109,8 @@ def setup_auto_refresh():
         st.session_state.last_auto_refresh_time = current_time
         update_rates()
         
-        # Handle news refresh (every 4th refresh cycle - 2 minutes)
-        if count % 10 == 0:  # Every 4th refresh (30 * 10 = 300 seconds)
+        # Handle news refresh (every 10th refresh cycle - 10 minutes)
+        if count % 10 == 0:  # Every 10th refresh (60 * 10 = 600 seconds = 10 minutes)
             st.session_state.last_news_auto_refresh_time = current_time
             fetch_news(use_mock_fallback=True)
 
@@ -228,9 +228,17 @@ def update_rates(use_mock_data=False):
                 results_lower = {k.lower(): {kk.lower(): vv for kk, vv in v.items()} for k, v in results.items()}
 
                 if base in results_lower and quote in results_lower[base]:
-                    # Store last rate before updating
-                    sub["last_rate"] = sub["current_rate"]
-                    sub["current_rate"] = results_lower[base][quote]
+                    rate_data = results_lower[base][quote]
+                    
+                    # Handle the new dictionary format with price and previous_close
+                    if isinstance(rate_data, dict) and "price" in rate_data:
+                        # Store the previous close value directly in the subscription
+                        sub["previous_close"] = rate_data.get("previous_close")
+                        sub["current_rate"] = rate_data["price"]
+                    else:
+                        # Backward compatibility with old format
+                        sub["last_rate"] = sub["current_rate"]
+                        sub["current_rate"] = rate_data
 
                     # Optional: Add small random variations for testing UI updates
                     if 'show_debug' in st.session_state and st.session_state.show_debug and 'add_variations' in st.session_state and st.session_state.add_variations:
@@ -249,11 +257,12 @@ def update_rates(use_mock_data=False):
                     if len(st.session_state.rate_history[pair_key]) > 100:
                         st.session_state.rate_history[pair_key] = st.session_state.rate_history[pair_key][-100:]
 
-                    # Check for threshold breach if we have both rates
-                    if sub["last_rate"] is not None and sub["current_rate"] is not None:
-                        percent_change = abs((sub["current_rate"] - sub["last_rate"]) / sub["last_rate"] * 100)
+                    # Check for threshold breach using previous_close if available
+                    reference_price = sub.get("previous_close", sub.get("last_rate"))
+                    if reference_price is not None and sub["current_rate"] is not None:
+                        percent_change = abs((sub["current_rate"] - reference_price) / reference_price * 100)
                         if percent_change > sub["threshold"]:
-                            direction = "increased" if sub["current_rate"] > sub["last_rate"] else "decreased"
+                            direction = "increased" if sub["current_rate"] > reference_price else "decreased"
                             add_notification(
                                 f"{sub['base']}/{sub['quote']} {direction} by {percent_change:.2f}% (threshold: {sub['threshold']}%)",
                                 "price"
@@ -271,18 +280,73 @@ def update_rates(use_mock_data=False):
         return False
 
 # Function to calculate percentage variation
+# All currencies (both base and quote) will now appear on the map
+# Variations are properly aggregated when multiple currency pairs affect the same country
+# Inverts the variation value for quote currencies (since a positive change in EUR/USD is negative for USD)
+# Function to calculate percentage variation using previous close
 def calculate_percentage_variation(subscriptions):
     variations = []
     for sub in subscriptions:
-        if sub["last_rate"] is not None and sub["current_rate"] is not None:
-            percent_change = ((sub["current_rate"] - sub["last_rate"]) / sub["last_rate"]) * 100
-            variations.append({
-                "currency_pair": f"{sub['base']}/{sub['quote']}",
-                "base": sub["base"],
-                "quote": sub["quote"],
-                "variation": percent_change
-            })
+        # Check if current_rate exists
+        if sub["current_rate"] is not None:
+            # Use previous_close from rate data if it exists, otherwise fall back to last_rate
+            previous_rate = sub.get("previous_close", sub.get("last_rate"))
+            
+            # Only calculate variation if we have a valid previous rate
+            if previous_rate is not None:
+                percent_change = ((sub["current_rate"] - previous_rate) / previous_rate) * 100
+                variations.append({
+                    "currency_pair": f"{sub['base']}/{sub['quote']}",
+                    "base": sub["base"],
+                    "quote": sub["quote"],
+                    "variation": percent_change,
+                    "current_rate": sub["current_rate"],
+                    "previous_rate": previous_rate
+                })
     return variations
+
+def prepare_map_data(variations, currency_to_country):
+    map_data = []
+    
+    # Create a dictionary to store aggregated variations by country
+    country_variations = {}
+    
+    for variation in variations:
+        # Process base currency locations
+        base_locations = currency_to_country.get(variation["base"], [])
+        # Ensure we have a list of locations even if it's a single country
+        if not isinstance(base_locations, list):
+            base_locations = [base_locations]
+            
+        # Add locations for base currency
+        for location in base_locations:
+            if location not in country_variations:
+                country_variations[location] = []
+            country_variations[location].append(variation["variation"])
+        
+        # Also process quote currency locations (with inverted variation)
+        quote_locations = currency_to_country.get(variation["quote"], [])
+        # Ensure we have a list of locations even if it's a single country
+        if not isinstance(quote_locations, list):
+            quote_locations = [quote_locations]
+            
+        # Add locations for quote currency (with inverted variation)
+        for location in quote_locations:
+            if location not in country_variations:
+                country_variations[location] = []
+            # Invert the variation for quote currency
+            country_variations[location].append(-variation["variation"])
+    
+    # Create the final map data by averaging the variations for each country
+    for location, variations_list in country_variations.items():
+        if variations_list:
+            avg_variation = sum(variations_list) / len(variations_list)
+            map_data.append({
+                "location": location,
+                "variation": avg_variation
+            })
+    
+    return map_data
 
 # Call this function right after your session state initialization
 setup_auto_refresh()
@@ -292,114 +356,13 @@ setup_auto_refresh()
 # st.image(logo_url, width=50, align=right)
 
 # Main app header with logo
+sentiment_url = "https://huggingface.co/yiyanghkust/finbert-tone"
 st.markdown("<h1 class='main-header'>💱 FX Currency Monitor</h1>", unsafe_allow_html=True)
-st.markdown("Real-time FX rates and news sentiment monitoring")
-
-
-
-# Calculate percentage variations
-variations = calculate_percentage_variation(st.session_state.subscriptions)
-
-# Prepare data for the geomap
-map_data = []
-for variation in variations:
-    # Use the base currency to determine the location
-    locations = currency_to_country.get(variation["base"], ["Unknown"])
-    for location in locations:
-        map_data.append({
-            "location": location,
-            "variation": variation["variation"]
-        })
-
-# Conditionally display the geomaps
-if map_data:
-    # Create a layout with three columns
-    col1, col2, col3 = st.columns(3)
-
-    # Map for the US continent
-    with col1:
-        fig_us = go.Figure(data=go.Choropleth(
-            locations=[data["location"] for data in map_data if data["location"] in ['United States', 'Canada', 'Mexico']],
-            z=[data["variation"] for data in map_data if data["location"] in ['United States', 'Canada', 'Mexico']],
-            locationmode='country names',
-            colorscale='RdBu',
-            colorbar_title="% Variation",
-            text=[f'{data["variation"]:.2f}%' for data in map_data if data["location"] in ['United States', 'Canada', 'Mexico']],  # Display variation as text
-            hoverinfo='text'  # Show only text on hover
-        ))
-
-        fig_us.update_layout(
-            geo=dict(
-                showframe=False,
-                showcoastlines=False,
-                projection_type='equirectangular',
-                center=dict(lat=37.0902, lon=-95.7129),  # Center around the US
-                scope='north america'  # Focus on North America
-            ),
-            height=300,
-            margin=dict(l=0, r=0, t=0, b=0)
-        )
-
-        st.plotly_chart(fig_us, use_container_width=True)
-
-    # Map for Europe
-    with col2:
-        fig_europe = go.Figure(data=go.Choropleth(
-            locations=[data["location"] for data in map_data if data["location"] in currency_to_country['EUR']],
-            z=[data["variation"] for data in map_data if data["location"] in currency_to_country['EUR']],
-            locationmode='country names',
-            colorscale='RdBu',
-            colorbar_title="% Variation",
-            text=[f'{data["variation"]:.2f}%' for data in map_data if data["location"] in currency_to_country['EUR']],  # Display variation as text
-            hoverinfo='text'  # Show only text on hover
-        ))
-
-        fig_europe.update_layout(
-            geo=dict(
-                showframe=False,
-                showcoastlines=False,
-                projection_type='equirectangular',
-                center=dict(lat=54.5260, lon=15.2551),  # Center around Europe
-                scope='europe'  # Focus on Europe
-            ),
-            height=300,
-            margin=dict(l=0, r=0, t=0, b=0)
-        )
-
-        st.plotly_chart(fig_europe, use_container_width=True)
-
-    # Map for Asia (focusing on China)
-    with col3:
-        fig_asia = go.Figure(data=go.Choropleth(
-            locations=[data["location"] for data in map_data if data["location"] in ['China', 'Japan', 'India', 'Singapore', 'Hong Kong']],
-            z=[data["variation"] for data in map_data if data["location"] in ['China', 'Japan', 'India', 'Singapore', 'Hong Kong']],
-            locationmode='country names',
-            colorscale='RdBu',
-            colorbar_title="% Variation",
-            text=[f'{data["variation"]:.2f}%' for data in map_data if data["location"] in ['China', 'Japan', 'India', 'Singapore', 'Hong Kong']],  # Display variation as text
-            hoverinfo='text'  # Show only text on hover
-        ))
-
-        fig_asia.update_layout(
-            geo=dict(
-                showframe=False,
-                showcoastlines=False,
-                projection_type='equirectangular',
-                center=dict(lat=35.8617, lon=104.1954),  # Center around China
-                scope='asia'  # Focus on Asia
-            ),
-            height=300,
-            margin=dict(l=0, r=0, t=0, b=0)
-        )
-
-        st.plotly_chart(fig_asia, use_container_width=True)
-else:
-    st.info("No data available to display on the maps. Please add subscriptions and wait for data to be fetched.")
-
-
-# Page layout: Two columns for the main content
-col1, col4 = st.columns([3, 1])  # Adjust the column widths to give more space to the map
-
+# Display the text with a link on the word "sentiment"
+st.markdown(
+    f"Real-time FX rates and news sentiment monitoring [.]({sentiment_url})",
+    unsafe_allow_html=True
+)
 
 # Right sidebar for subscription management
 with st.sidebar:
@@ -487,8 +450,126 @@ with st.sidebar:
             unsafe_allow_html=True
         )
 
-# Main area: Currency rates
-with col1:
+# Calculate percentage variations
+variations = calculate_percentage_variation(st.session_state.subscriptions)
+
+# Prepare data for the geomap
+map_data = prepare_map_data(variations, currency_to_country)
+
+# Page layout: Two columns for the main content
+col4, col5 = st.columns([3, 1])  # Adjust the column widths to give more space to the map
+
+with col4:
+
+    # Conditionally display the geomaps
+    if map_data:
+        # Create a layout with three columns
+        col1, col2, col3 = st.columns(3)
+
+        # Map for the US continent
+        with col1:
+            us_locations = ['United States', 'Canada', 'Mexico']
+            fig_us = go.Figure(data=go.Choropleth(
+                locations=[data["location"] for data in map_data if data["location"] in us_locations],
+                z=[data["variation"] for data in map_data if data["location"] in us_locations],
+                locationmode='country names',
+                colorscale='RdBu',
+                colorbar_title="% Variation",
+                text=[f'{data["variation"]:.2f}%' for data in map_data if data["location"] in us_locations],
+                hoverinfo='text'
+            ))
+
+            fig_us.update_layout(
+                geo=dict(
+                    showframe=False,
+                    showcoastlines=False,
+                    projection_type='equirectangular',
+                    center=dict(lat=37.0902, lon=-95.7129),
+                    scope='north america'
+                ),
+                height=300,
+                margin=dict(l=0, r=0, t=0, b=0)
+            )
+
+            st.plotly_chart(fig_us, use_container_width=True)
+
+        # Map for Europe - FIXED
+        with col2:
+            # Instead of using 'in currency_to_country['EUR']' which filters map_data incorrectly,
+            # create a list of European countries directly from currency_to_country
+            euro_countries = currency_to_country['EUR']
+            if not isinstance(euro_countries, list):
+                euro_countries = [euro_countries]
+            
+            # Filter the map_data for European countries
+            euro_map_data = [data for data in map_data if data["location"] in euro_countries]
+            
+            if euro_map_data:
+                fig_europe = go.Figure(data=go.Choropleth(
+                    locations=[data["location"] for data in euro_map_data],
+                    z=[data["variation"] for data in euro_map_data],
+                    locationmode='country names',
+                    colorscale='RdBu',
+                    colorbar_title="% Variation",
+                    text=[f'{data["variation"]:.2f}%' for data in euro_map_data],
+                    hoverinfo='text'
+                ))
+
+                fig_europe.update_layout(
+                    geo=dict(
+                        showframe=False,
+                        showcoastlines=False,
+                        projection_type='equirectangular',
+                        center=dict(lat=54.5260, lon=15.2551),
+                        scope='europe'
+                    ),
+                    height=300,
+                    margin=dict(l=0, r=0, t=0, b=0)
+                )
+
+                st.plotly_chart(fig_europe, use_container_width=True)
+            else:
+                st.info("No variation data available for European countries")
+
+        # Map for Asia - FIXED
+        with col3:
+            asia_countries = ['China', 'Japan', 'India', 'Singapore', 'Hong Kong']
+            
+            # Filter the map_data for Asian countries
+            asia_map_data = [data for data in map_data if data["location"] in asia_countries]
+            
+            if asia_map_data:
+                fig_asia = go.Figure(data=go.Choropleth(
+                    locations=[data["location"] for data in asia_map_data],
+                    z=[data["variation"] for data in asia_map_data],
+                    locationmode='country names',
+                    colorscale='RdBu',
+                    colorbar_title="% Variation",
+                    text=[f'{data["variation"]:.2f}%' for data in asia_map_data],
+                    hoverinfo='text'
+                ))
+
+                fig_asia.update_layout(
+                    geo=dict(
+                        showframe=False,
+                        showcoastlines=False,
+                        projection_type='equirectangular',
+                        center=dict(lat=35.8617, lon=104.1954),
+                        scope='asia'
+                    ),
+                    height=300,
+                    margin=dict(l=0, r=0, t=0, b=0)
+                )
+
+                st.plotly_chart(fig_asia, use_container_width=True)
+            else:
+                st.info("No variation data available for Asian countries")
+    else:
+        st.info("No data available to display on the maps. Please add subscriptions and wait for data to be fetched.")
+
+
+# with col4:
+    # Main area: Currency rates
     st.header("Currency Rates")
 
     # Check if we need initial data
@@ -504,10 +585,10 @@ with col1:
         # Create a card using Streamlit's expander
         with st.expander(f"{sub['base']}/{sub['quote']}", expanded=True):
             # Top row with currency pair and remove button
-            col1, col2 = st.columns([3, 1])
-            with col1:
+            col6, col7 = st.columns([3, 1])
+            with col6:
                 st.markdown(f"### {sub['base']}/{sub['quote']}")
-            with col2:
+            with col7:
                 if st.button("Remove", key=f"remove_{key_base}"):
                     st.session_state.subscriptions.pop(i)
                     add_notification(f"Removed subscription: {sub['base']}/{sub['quote']}", "system")
@@ -598,12 +679,12 @@ with col1:
             st.plotly_chart(fig, use_container_width=True)
 
 # News feed
-with col4:
+with col5:
     st.header("Currency News")
 
     # Filter controls
     sentiment_filter = st.selectbox(
-        "Filter by sentiment",
+        "Filter by sentiment using Finbert-Tone AI Model",
         options=["All News", "Positive", "Negative", "Neutral", "Important Only"]
     )
 

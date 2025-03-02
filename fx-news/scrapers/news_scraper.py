@@ -7,6 +7,34 @@ from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from textblob import TextBlob
 import logging
+# from transformers import BertTokenizer, BertForSequenceClassification
+# import torch
+
+# Load the FinBERT model and tokenizer
+# model_name = "yiyanghkust/finbert-tone"
+# tokenizer = BertTokenizer.from_pretrained(model_name)
+# model = BertForSequenceClassification.from_pretrained(model_name)
+
+# def analyze_sentiment_finbert(text):
+#     # Tokenize the input text
+#     inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True)
+
+#     # Perform inference
+#     with torch.no_grad():
+#         outputs = model(**inputs)
+
+#     # Get the predicted sentiment score
+#     logits = outputs.logits
+#     predicted_class = torch.argmax(logits, dim=1).item()
+
+#     # Map the predicted class to a sentiment label
+#     sentiment_label = {
+#         0: "negative",
+#         1: "neutral",
+#         2: "positive"
+#     }
+
+#     return sentiment_label[predicted_class]
 
 def format_currency_pair_for_yahoo(base, quote):
     """
@@ -199,7 +227,7 @@ def scrape_yahoo_finance_news(currency_pairs, max_articles=5, debug_log=None):
                     if summary_element:
                         news_item["summary"] = summary_element.text.strip()
                     
-                    # Analyze sentiment using TextBlob
+                    # # Analyze sentiment using TextBlob
                     text_for_sentiment = title
                     if "summary" in news_item:
                         text_for_sentiment += " " + news_item["summary"]
@@ -214,8 +242,30 @@ def scrape_yahoo_finance_news(currency_pairs, max_articles=5, debug_log=None):
                     else:
                         news_item["sentiment"] = "neutral"
                     
-                    pair_news.append(news_item)
+                    # pair_news.append(news_item)
                     
+                    # Analyze sentiment using FinBERT
+                    # text_for_sentiment = title
+                    # if "summary" in news_item:
+                    #     text_for_sentiment += " " + news_item["summary"]
+
+                    # # Get the sentiment label
+                    # sentiment_label = analyze_sentiment_finbert(text_for_sentiment)
+
+                    # Map the sentiment label to a score
+                    sentiment_mapping = {
+                        "negative": -1.0,
+                        "neutral": 0.0,
+                        "positive": 1.0
+                    }
+
+                    # Finbert approach
+                    # news_item["score"] = sentiment_mapping[sentiment_label]
+                    # news_item["sentiment"] = sentiment_label
+
+                    pair_news.append(news_item)
+
+
                 except Exception as e:
                     debug_log.append(f"Error processing news item for {base}/{quote}: {e}")
                     continue

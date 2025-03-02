@@ -1,6 +1,7 @@
 import requests
 import time
 import random
+import re
 from datetime import datetime
 from bs4 import BeautifulSoup
 
@@ -38,7 +39,7 @@ def scrape_yahoo_finance_rates(currency_pairs, debug_log=None):
         try:
             yahoo_symbol = format_currency_pair_for_yahoo(base, quote)
             spark_url = f"https://query1.finance.yahoo.com/v7/finance/spark?includePrePost=false&includeTimestamps=false&indicators=close&interval=5m&range=1d&symbols={yahoo_symbol}&lang=en-GB&region=GB"
-            # print(f"Fetching rate for {base}/{quote} from Spark URL: {spark_url}")
+            print(f"Fetching rate for {base}/{quote} from Spark URL: {spark_url}")
             debug_log.append(f"Fetching rate for {base}/{quote} from Spark URL: {spark_url}")
 
             time.sleep(random.uniform(1, 3))  # Increase delay to mimic human browsing
@@ -49,15 +50,23 @@ def scrape_yahoo_finance_rates(currency_pairs, debug_log=None):
                 if spark_data and "spark" in spark_data and "result" in spark_data["spark"]:
                     spark_result = spark_data["spark"]["result"][0]
                     if "response" in spark_result and "meta" in spark_result["response"][0]:
-                        rate = spark_result["response"][0]["meta"]["regularMarketPrice"]
+                        meta_data = spark_result["response"][0]["meta"]
+                        current_rate = meta_data.get("regularMarketPrice")
+                        previous_close = meta_data.get("previousClose")
+                        
                         if base not in base_rates:
                             base_rates[base] = {}
-                        base_rates[base][quote] = rate
-                        # print(f"Fetched rate for {base}/{quote} from Spark API: {rate}")
-                        debug_log.append(f"Fetched rate for {base}/{quote} from Spark API: {rate}")
+                        
+                        base_rates[base][quote] = {
+                            "price": current_rate,
+                            "previous_close": previous_close
+                        }
+                        
+                        print(f"Fetched data for {base}/{quote} from Spark API: Current: {current_rate}, Previous: {previous_close}")
+                        debug_log.append(f"Fetched data for {base}/{quote} from Spark API: Current: {current_rate}, Previous: {previous_close}")
                     else:
-                        print(f"No regularMarketPrice found in Spark API response for {base}/{quote}")
-                        debug_log.append(f"No regularMarketPrice found in Spark API response for {base}/{quote}")
+                        print(f"No price data found in Spark API response for {base}/{quote}")
+                        debug_log.append(f"No price data found in Spark API response for {base}/{quote}")
                 else:
                     print(f"Invalid Spark API response for {base}/{quote}")
                     debug_log.append(f"Invalid Spark API response for {base}/{quote}")
@@ -67,7 +76,6 @@ def scrape_yahoo_finance_rates(currency_pairs, debug_log=None):
 
                 # Fallback: Use the existing scraping method
                 url = f"https://uk.finance.yahoo.com/quote/{yahoo_symbol}?{random.random()}"
-                # print(f"Fetching rate for {base}/{quote} from URL: {url}")
                 debug_log.append(f"Fetching rate for {base}/{quote} from URL: {url}")
 
                 response = requests.get(url, headers=headers)
@@ -77,23 +85,37 @@ def scrape_yahoo_finance_rates(currency_pairs, debug_log=None):
                     # Debug: Print the page content to inspect
                     with open("debug_page.html", "w", encoding="utf-8") as file:
                         file.write(soup.prettify())
-                    # print(f"Page content saved to debug_page.html for {base}/{quote}")
 
-                    # Find the fin-streamer tag with the correct data-symbol attribute
-                    fin_streamer_tag = soup.find('fin-streamer', {'data-field': "regularMarketDayRange", 'data-symbol': re.compile(rf'{base}{quote}=X')})
-
-                    if fin_streamer_tag:
-                        rate_text = fin_streamer_tag['data-value']
-                        # Extract the first rate value from the range
-                        rate = float(rate_text.split(' - ')[0])
+                    # Find current price
+                    current_price_tag = soup.find('fin-streamer', {'data-field': "regularMarketPrice", 'data-symbol': re.compile(rf'{base}{quote}=X')})
+                    
+                    # Find previous close
+                    previous_close_tag = soup.find('td', {'data-test': "PREV_CLOSE-value"})
+                    
+                    current_rate = None
+                    previous_close = None
+                    
+                    if current_price_tag and 'value' in current_price_tag.attrs:
+                        current_rate = float(current_price_tag['value'])
+                    
+                    if previous_close_tag:
+                        try:
+                            previous_close = float(previous_close_tag.text.strip())
+                        except (ValueError, TypeError):
+                            debug_log.append(f"Could not convert previous close to float for {base}/{quote}")
+                    
+                    if current_rate:
                         if base not in base_rates:
                             base_rates[base] = {}
-                        base_rates[base][quote] = rate
-                        # print(f"Fetched rate for {base}/{quote}: {rate}")
-                        debug_log.append(f"Fetched rate for {base}/{quote}: {rate}")
+                        
+                        base_rates[base][quote] = {
+                            "price": current_rate,
+                            "previous_close": previous_close
+                        }
+                        
+                        debug_log.append(f"Fetched data for {base}/{quote}: Current: {current_rate}, Previous: {previous_close}")
                     else:
-                        # print(f"fin-streamer tag with data-symbol {yahoo_symbol} not found")
-                        debug_log.append(f"fin-streamer tag with data-symbol {yahoo_symbol} not found")
+                        debug_log.append(f"Price data not found for {base}/{quote}")
                 else:
                     print(f"Failed to fetch data for {base}/{quote}: {response.status_code}")
                     debug_log.append(f"Failed to fetch data for {base}/{quote}: {response.status_code}")
