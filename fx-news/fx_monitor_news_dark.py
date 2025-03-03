@@ -28,50 +28,67 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize session state only once
-for key, default_value in {
-    'subscriptions': [
-        {"base": "EUR", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None},
-        {"base": "USD", "quote": "JPY", "threshold": 0.01, "last_rate": None, "current_rate": None},
-        {"base": "GBP", "quote": "EUR", "threshold": 0.01, "last_rate": None, "current_rate": None},
-        # {"base": "GBP", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None},
-        # {"base": "EUR", "quote": "CAD", "threshold": 0.01, "last_rate": None, "current_rate": None},
-        # {"base": "GBP", "quote": "NZD", "threshold": 0.01, "last_rate": None, "current_rate": None},
-         {"base": "CNY", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None},
-         {"base": "JPY", "quote": "CNY", "threshold": 0.01, "last_rate": None, "current_rate": None},
-       #  {"base": "JPY", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None},
-         {"base": "BTC", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None},
-         {"base": "ETH", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None}
-    ],
-    'notifications': [],
-    'last_refresh': None,
-    'last_news_fetch': None, 
-    'cached_news': [],
-    'rate_history': {},
-    'debug_log': True,
-    'show_debug': False,
-    'add_variations': False,
-    'auto_refresh': True,
-    'last_auto_refresh_time': datetime.now()
-}.items():
-    # Only set the value if the key doesn't exist in session state
-    if key not in st.session_state:
-        st.session_state[key] = default_value
+default_fx_pairs = [
+    {"base": "EUR", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None},
+    {"base": "USD", "quote": "JPY", "threshold": 0.01, "last_rate": None, "current_rate": None},
+    {"base": "GBP", "quote": "EUR", "threshold": 0.01, "last_rate": None, "current_rate": None},
+    {"base": "AUD", "quote": "USD", "threshold": 0.01, "last_rate": None, "current_rate": None},
+    {"base": "USD", "quote": "CAD", "threshold": 0.01, "last_rate": None, "current_rate": None},
+    {"base": "USD", "quote": "CHF", "threshold": 0.01, "last_rate": None, "current_rate": None},
+]
 
-# Available currencies
-available_currencies = {
+default_crypto_pairs = [
+    {"base": "BTC", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},
+    {"base": "ETH", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},
+    {"base": "SOL", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},
+    {"base": "BNB", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},
+    {"base": "XRP", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},
+    {"base": "ETH", "quote": "BTC", "threshold": 0.5, "last_rate": None, "current_rate": None},
+]
+
+
+# FX Currencies
+fx_currencies = {
     'EUR': 'Euro',
     'USD': 'US Dollar',
     'GBP': 'British Pound',
     'JPY': 'Japanese Yen',
-    'XAG': 'Silver',
     'AUD': 'Australian Dollar',
     'CAD': 'Canadian Dollar',
     'CHF': 'Swiss Franc',
     'CNY': 'Chinese Yuan',
     'NZD': 'New Zealand Dollar',
     'HKD': 'Hong Kong Dollar',
-    'SGD': 'Singapore Dollar'
+    'SGD': 'Singapore Dollar',
+    'NOK': 'Norwegian Krone',
+    'SEK': 'Swedish Krona',
+    'MXN': 'Mexican Peso',
+    'ZAR': 'South African Rand',
+    'TRY': 'Turkish Lira',
+    'INR': 'Indian Rupee',
+    'XAG': 'Silver'
+}
+
+# Crypto Currencies
+crypto_currencies = {
+    'BTC': 'Bitcoin',
+    'ETH': 'Ethereum',
+    'XRP': 'Ripple',
+    'SOL': 'Solana',
+    'BNB': 'Binance Coin',
+    'ADA': 'Cardano',
+    'DOGE': 'Dogecoin',
+    'DOT': 'Polkadot',
+    'AVAX': 'Avalanche',
+    'LINK': 'Chainlink',
+    'LTC': 'Litecoin',
+    'UNI': 'Uniswap',
+    'XLM': 'Stellar',
+    'MATIC': 'Polygon',
+    'ATOM': 'Cosmos',
+    'USDT': 'Tether',
+    'USDC': 'USD Coin',
+    'BUSD': 'Binance USD'
 }
 
 currency_to_country = {
@@ -92,6 +109,39 @@ currency_to_country = {
     'SGD': 'Singapore',
     'XAG': 'Global'  # Silver is traded globally
 }
+
+if 'market_type' not in st.session_state:
+    st.session_state.market_type = 'FX'  # Default to FX market
+
+# Initialize session state only once
+for key, default_value in {
+    'subscriptions': default_fx_pairs if st.session_state.get('market_type', 'FX') == 'FX' else default_crypto_pairs,
+    'notifications': [],
+    'last_refresh': None,
+    'last_news_fetch': None, 
+    'cached_news': [],
+    'rate_history': {},
+    'debug_log': True,
+    'show_debug': False,
+    'add_variations': False,
+    'auto_refresh': True,
+    'last_auto_refresh_time': datetime.now(),
+    'fx_subscriptions': default_fx_pairs,  # Store FX subscriptions separately
+    'crypto_subscriptions': default_crypto_pairs,  # Store crypto subscriptions separately
+}.items():
+    # Only set the value if the key doesn't exist in session state
+    if key not in st.session_state:
+        st.session_state[key] = default_value
+
+# Update the currency mappings based on market type
+# This section should come after the session state initialization
+if st.session_state.market_type == 'FX':
+    available_currencies = fx_currencies
+    # Also update the currency to country mapping - may need to modify for Crypto
+else:
+    available_currencies = crypto_currencies
+    # For crypto, we might want to create a special mapping
+    # or just use a simpler representation for the map
 
 # Fetch API key from environment variables
 API_KEY = os.getenv("CURRENCY_API_KEY")
@@ -125,16 +175,45 @@ def setup_auto_refresh():
 
 def display_economic_calendar_for_currency_pair(base, quote, debug_log=None):
     """
-    Display economic calendar for a currency pair in a tab interface
+    Display economic calendar for a currency pair in a tab interface,
+    or crypto news for crypto pairs
     
     Args:
-        base: Base currency code (e.g. 'EUR')
-        quote: Quote currency code (e.g. 'USD')
+        base: Base currency code (e.g. 'EUR' or 'BTC')
+        quote: Quote currency code (e.g. 'USD' or 'ETH')
         debug_log: Optional list to append debug information
     """
     if debug_log is None:
         debug_log = []
     
+    # Check if we're in crypto mode
+    if st.session_state.market_type == 'Crypto':
+        st.markdown(f"### {base}/{quote} News and Events")
+        
+        # For crypto, we'll show crypto-specific news instead of economic calendar
+        st.info("Crypto-specific calendar events are not available. Consider visiting CoinMarketCal or other crypto event calendars for upcoming events.")
+        
+        # You could implement a crypto news scraper here, or use a placeholder
+        st.markdown("#### Recent Crypto News")
+        news_items = []
+        
+        # If you have news in your cached news, filter for this pair
+        if 'cached_news' in st.session_state and st.session_state.cached_news:
+            for item in st.session_state.cached_news:
+                if base in item.get('currency', '') or quote in item.get('currency', ''):
+                    news_items.append(item)
+        
+        if news_items:
+            for item in news_items[:3]:  # Show top 3 news items
+                st.markdown(f"**{item.get('title', 'News Title')}**")
+                st.markdown(f"Source: {item.get('source', 'Unknown')} - {item.get('timestamp', datetime.now()).strftime('%Y-%m-%d')}")
+                st.markdown("---")
+        else:
+            st.info(f"No recent news found for {base}/{quote}")
+        
+        return
+    
+    # For FX mode, use the existing economic calendar logic
     # Get the cached economic events or fetch them if not available
     if 'economic_events' not in st.session_state or st.session_state.economic_events is None:
         fetch_all_economic_events()
@@ -532,6 +611,190 @@ def update_rates(use_mock_data=False):
         add_notification(f"Error updating rates: {str(e)}", "error")
         return False
 
+
+def display_crypto_market_visualization():
+    """Display a crypto market visualization using a better scaling approach"""
+    
+    # Market cap estimates or scaling factor for common cryptocurrencies
+    # These are approximate values that would need to be updated regularly in a real app
+    # In a production app, you'd fetch these from an API
+    market_cap_estimates = {
+        "BTC": 1000,  # Bitcoin
+        "ETH": 500,   # Ethereum
+        "BNB": 100,   # Binance Coin
+        "SOL": 80,    # Solana
+        "XRP": 70,    # Ripple
+        "ADA": 50,    # Cardano
+        "AVAX": 40,   # Avalanche
+        "DOGE": 30,   # Dogecoin
+        "DOT": 25,    # Polkadot
+        "LINK": 20,   # Chainlink
+        "MATIC": 15,  # Polygon
+        "LTC": 12,    # Litecoin
+        "XLM": 10,    # Stellar
+        "UNI": 8,     # Uniswap
+        "ATOM": 5,    # Cosmos
+        "USDT": 80,   # Tether
+        "USDC": 30,   # USD Coin
+        "BUSD": 10    # Binance USD
+    }
+    
+    # Get data for the visualization
+    crypto_data = []
+    
+    for sub in st.session_state.subscriptions:
+        if sub["current_rate"] is not None:
+            # Calculate percent change
+            percent_change = 0
+            if sub.get("previous_close") is not None:
+                percent_change = ((sub["current_rate"] - sub["previous_close"]) / sub["previous_close"]) * 100
+            elif sub.get("last_rate") is not None:
+                percent_change = ((sub["current_rate"] - sub["last_rate"]) / sub["last_rate"]) * 100
+            
+            # Use market cap estimate if available, otherwise use a default value
+            market_value = market_cap_estimates.get(sub["base"], 10)
+            
+            crypto_data.append({
+                "coin": sub["base"],
+                "quote": sub["quote"],
+                "price": sub["current_rate"],
+                "value": market_value,
+                "change": percent_change
+            })
+    
+    if not crypto_data:
+        st.info("No crypto data available yet. Add some cryptocurrency pairs to see the visualization.")
+        return
+    
+    # Create a treemap
+    fig = go.Figure(go.Treemap(
+        labels=[f"{d['coin']}/{d['quote']}: ${d['price']:.2f}" for d in crypto_data],
+        parents=["" for _ in crypto_data],
+        values=[d["value"] for d in crypto_data],  # Using our market cap estimates instead of price
+        textinfo="label",
+        hovertemplate='<b>%{label}</b><br>Change: %{customdata:.2f}%<extra></extra>',
+        customdata=[[d["change"]] for d in crypto_data],
+        marker=dict(
+            colors=[
+                '#4CAF50' if d["change"] > 1 else 
+                '#8BC34A' if d["change"] > 0 else 
+                '#F44336' if d["change"] < -1 else 
+                '#FFCDD2' 
+                for d in crypto_data
+            ],
+            colorscale=None,  # Use the colors defined above
+            showscale=False
+        ),
+    ))
+    
+    # Update layout
+    fig.update_layout(
+        height=300,
+        margin=dict(l=0, r=0, t=0, b=0),
+        paper_bgcolor="#121212",
+        plot_bgcolor="#121212",
+        font=dict(color="white")
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Add a small description
+    st.markdown("""
+    <div style="margin-top: -15px; text-align: center; font-size: 0.8rem; color: #888;">
+    Treemap shows relative market importance with area proportional to market capitalization.
+    Green indicates positive change, red indicates negative change.
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Add a table view of the data as well
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("#### Top Gainers")
+        # Sort by change, show top 3 gainers
+        gainers = sorted([d for d in crypto_data if d["change"] > 0], 
+                        key=lambda x: x["change"], reverse=True)
+        
+        if gainers:
+            for coin in gainers[:3]:
+                st.markdown(f"""
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px; 
+                            background-color:#1E1E1E; padding:8px; border-radius:5px;">
+                    <span style="font-weight:bold; color:white;">{coin['coin']}/{coin['quote']}</span>
+                    <span style="color:#4CAF50; font-weight:bold;">+{coin['change']:.2f}%</span>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.markdown("<div style='color:white;'>No gainers found</div>", unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("#### Top Losers")
+        # Sort by change, show top 3 losers
+        losers = sorted([d for d in crypto_data if d["change"] < 0], 
+                        key=lambda x: x["change"])
+        
+        if losers:
+            for coin in losers[:3]:
+                st.markdown(f"""
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px; 
+                            background-color:#1E1E1E; padding:8px; border-radius:5px;">
+                    <span style="font-weight:bold; color:white;">{coin['coin']}/{coin['quote']}</span>
+                    <span style="color:#F44336; font-weight:bold;">{coin['change']:.2f}%</span>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.markdown("<div style='color:white;'>No losers found</div>", unsafe_allow_html=True)
+
+    with col3:
+        st.markdown("#### Highest Volume")
+        
+        # In a real implementation, you would fetch actual trading volume data from an API
+        # For now, we'll simulate it based on market cap and price
+        volume_data = []
+        for coin in crypto_data:
+            # Create a realistic volume simulation
+            # In reality, BTC and ETH typically have the highest volumes
+            # Base volume on market cap (value) with some randomization
+            base_volume = coin["value"] * 1_000_000  # Scale to millions
+            
+            # Add extra volume for certain major coins
+            if coin["coin"] == "BTC":
+                base_volume *= 2.5
+            elif coin["coin"] == "ETH":
+                base_volume *= 2.0
+            elif coin["coin"] in ["USDT", "USDC", "BNB"]:
+                base_volume *= 1.5
+                
+            # Add some randomness (±30%)
+            randomness = 0.7 + (random.random() * 0.6)  # 0.7 to 1.3
+            volume = base_volume * randomness
+            
+            volume_data.append({
+                "coin": coin["coin"],
+                "quote": coin["quote"],
+                "volume": volume
+            })
+        
+        # Sort by volume
+        volume_data = sorted(volume_data, key=lambda x: x["volume"], reverse=True)
+        
+        for coin in volume_data[:3]:
+            # Format volume for display
+            if coin['volume'] > 1_000_000_000:
+                vol_formatted = f"${coin['volume']/1_000_000_000:.1f}B"
+            elif coin['volume'] > 1_000_000:
+                vol_formatted = f"${coin['volume']/1_000_000:.1f}M"
+            else:
+                vol_formatted = f"${coin['volume']/1_000:.1f}K"
+                
+            st.markdown(f"""
+            <div style="display:flex; justify-content:space-between; margin-bottom:5px; 
+                        background-color:#1E1E1E; padding:8px; border-radius:5px;">
+                <span style="font-weight:bold; color:white;">{coin['coin']}/{coin['quote']}</span>
+                <span style="color:white;">{vol_formatted}</span>
+            </div>
+            """, unsafe_allow_html=True)
+
 # Function to calculate percentage variation
 # All currencies (both base and quote) will now appear on the map
 # Variations are properly aggregated when multiple currency pairs affect the same country
@@ -559,6 +822,163 @@ def calculate_percentage_variation(subscriptions):
                     "variation": percent_change
                 })
     return variations
+
+# Add this function to calculate market volatility
+def calculate_market_volatility(subscriptions):
+    """
+    Calculate a market volatility index based on the short-term 
+    movement of all currency pairs.
+    
+    Args:
+        subscriptions: List of subscription dictionaries containing currency data
+    
+    Returns:
+        volatility_index: Overall market volatility score (0-100)
+        pair_volatility: Dictionary of volatility scores by pair
+    """
+    if not subscriptions:
+        return 0, {}
+    
+    pair_volatility = {}
+    volatility_scores = []
+    
+    for sub in subscriptions:
+        # Skip pairs with insufficient data
+        if sub.get("current_rate") is None:
+            continue
+            
+        # Get reference price for calculating volatility
+        reference_rate = None
+        if sub.get("previous_close") is not None:
+            reference_rate = sub["previous_close"]
+        elif sub.get("last_rate") is not None:
+            reference_rate = sub["last_rate"]
+            
+        if reference_rate is None:
+            continue
+            
+        # Calculate percent change as basic volatility measure
+        percent_change = abs((sub["current_rate"] - reference_rate) / reference_rate * 100)
+        
+        # Get historical data if available
+        pair_key = f"{sub['base'].lower()}_{sub['quote'].lower()}"
+        historical_volatility = 0
+        
+        if pair_key in st.session_state.rate_history and len(st.session_state.rate_history[pair_key]) > 3:
+            # Get recent history
+            history = st.session_state.rate_history[pair_key][-20:]  # Last 20 data points
+            rates = [point["rate"] for point in history]
+            
+            # Calculate standard deviation as a volatility measure if we have enough data
+            if len(rates) >= 3:
+                std_dev = np.std(rates)
+                mean_rate = np.mean(rates)
+                if mean_rate > 0:
+                    # Coefficient of variation (normalized standard deviation)
+                    historical_volatility = (std_dev / mean_rate) * 100
+        
+        # Combine recent change and historical volatility
+        # Weight recent change more heavily (70%) than historical volatility (30%)
+        volatility_score = (0.7 * percent_change) + (0.3 * historical_volatility)
+        
+        # Store pair-specific volatility
+        pair_volatility[f"{sub['base']}/{sub['quote']}"] = volatility_score
+        volatility_scores.append(volatility_score)
+    
+    # Calculate overall market volatility index (scale 0-100)
+    # We use the 80th percentile to reduce impact of outliers
+    if volatility_scores:
+        # Get the 80th percentile of all volatility scores
+        high_volatility = np.percentile(volatility_scores, 80) if len(volatility_scores) >= 5 else max(volatility_scores)
+        
+        # Scale to 0-100 range (assuming 5% change is very volatile -> 100)
+        # This scaling factor can be adjusted based on normal market conditions
+        volatility_index = min(100, (high_volatility / 5) * 100)
+    else:
+        volatility_index = 0
+    
+    return volatility_index, pair_volatility
+
+# Add this to display the market volatility index
+def display_volatility_index(volatility_index, pair_volatility):
+    """
+    Display the market volatility index as a gauge and pair-specific volatility.
+    
+    Args:
+        volatility_index: Overall market volatility score (0-100)
+        pair_volatility: Dictionary of volatility scores by pair
+    """
+    # Create a gauge chart for the volatility index
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=volatility_index,
+        domain={'x': [0, 1], 'y': [0, 1]},
+        title={'text': "Market Volatility Index", 'font': {'color': 'white', 'size': 16}},
+        gauge={
+            'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "white"},
+            'bar': {'color': "#4D9BF5"},
+            'bgcolor': "gray",
+            'borderwidth': 2,
+            'bordercolor': "white",
+            'steps': [
+                {'range': [0, 25], 'color': '#4CAF50'},  # Low volatility - green
+                {'range': [25, 50], 'color': '#FFC107'},  # Medium volatility - amber
+                {'range': [50, 75], 'color': '#FF9800'},  # Medium-high volatility - orange
+                {'range': [75, 100], 'color': '#F44336'}  # High volatility - red
+            ],
+        }
+    ))
+    
+    # Apply dark theme styling to gauge
+    fig.update_layout(
+        height=200,
+        margin=dict(l=20, r=20, t=50, b=20),
+        paper_bgcolor="#121212",
+        font=dict(color="white", size=12)
+    )
+    
+    # Display the gauge
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Display pair-specific volatility in a table
+    if pair_volatility:
+        # Sort pairs by volatility (highest to lowest)
+        sorted_pairs = sorted(pair_volatility.items(), key=lambda x: x[1], reverse=True)
+        
+        # Create a small table with the most volatile pairs
+        st.markdown("#### Most Volatile Pairs")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Format as a simple table
+            for pair, score in sorted_pairs[:3]:  # Top 3 pairs
+                # Color code based on volatility
+                if score > 4:
+                    color = "#F44336"  # Red
+                elif score > 2:
+                    color = "#FF9800"  # Orange
+                elif score > 1:
+                    color = "#FFC107"  # Amber
+                else:
+                    color = "#4CAF50"  # Green
+                
+                st.markdown(f"<div style='display:flex;justify-content:space-between;'><span>{pair}</span><span style='color:{color};font-weight:bold;'>{score:.2f}</span></div>", unsafe_allow_html=True)
+        
+        with col2:
+            # Show the next 3 pairs
+            for pair, score in sorted_pairs[3:6]:  # Next 3 pairs
+                # Color code based on volatility
+                if score > 4:
+                    color = "#F44336"  # Red
+                elif score > 2:
+                    color = "#FF9800"  # Orange
+                elif score > 1:
+                    color = "#FFC107"  # Amber
+                else:
+                    color = "#4CAF50"  # Green
+                
+                st.markdown(f"<div style='display:flex;justify-content:space-between;'><span>{pair}</span><span style='color:{color};font-weight:bold;'>{score:.2f}</span></div>", unsafe_allow_html=True)
 
 # Prepare data for the geomap
 def prepare_map_data(variations, currency_to_country):
@@ -611,17 +1031,345 @@ setup_auto_refresh()
 # logo_url = ""
 # st.image(logo_url, width=50, align=right)
 
-# Main app header with logo
-sentiment_url = "https://huggingface.co/yiyanghkust/finbert-tone"
-st.markdown("<h1 class='main-header'>💱 FX Currency Monitor</h1>", unsafe_allow_html=True)
-# Display the text with a link on the word "sentiment"
-st.markdown(
-    f"Real-time FX rates and news sentiment monitoring [.]({sentiment_url})",
-    unsafe_allow_html=True
-)
+st.markdown("""
+<style>
+    .block-container {
+        padding-top: 1rem !important;
+    }
+    
+    /* This helps reduce space around the header */
+    header {
+        visibility: hidden;
+    }
+    
+    /* Optional: Reduce space taken by the sidebar header */
+    #MainMenu {visibility: hidden;}
+    .stDeployButton {display:none;}
+</style>
+""", unsafe_allow_html=True)
+
+# Calculate volatility indices first
+volatility_index, pair_volatility = calculate_market_volatility(st.session_state.subscriptions)
+
+# Main header area with logo and volatility index
+header_col1, header_col2 = st.columns([2, 1])
+
+with header_col1:
+    # Main app header
+    st.markdown("<h1 class='main-header'>💱 FX Currency Monitor</h1>", unsafe_allow_html=True)
+    
+    # Display the text with a link on the word "sentiment"
+    sentiment_url = "https://huggingface.co/yiyanghkust/finbert-tone"
+    st.markdown(
+        f"Real-time FX rates and news sentiment monitoring [.]({sentiment_url})",
+        unsafe_allow_html=True
+    )
+
+with header_col2:
+    # Create a compact volatility gauge
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=volatility_index,
+        domain={'x': [0, 1], 'y': [0, 1]},
+        title={'text': "Market Volatility", 'font': {'color': 'white', 'size': 14}},
+        gauge={
+            'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "white", 'visible': False},
+            'bar': {'color': "#4D9BF5"},
+            'bgcolor': "gray",
+            'borderwidth': 1,
+            'bordercolor': "white",
+            'steps': [
+                {'range': [0, 25], 'color': '#4CAF50'},  # Low volatility - green
+                {'range': [25, 50], 'color': '#FFC107'},  # Medium volatility - amber
+                {'range': [50, 75], 'color': '#FF9800'},  # Medium-high volatility - orange
+                {'range': [75, 100], 'color': '#F44336'}  # High volatility - red
+            ],
+        }
+    ))
+    
+    # Make the gauge compact
+    fig.update_layout(
+        height=120,
+        margin=dict(l=10, r=10, t=30, b=10),
+        paper_bgcolor="#121212",
+        font=dict(color="white", size=10)
+    )
+    
+    # Display the gauge
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Add most volatile pair below the gauge
+    if pair_volatility:
+        # Get the most volatile pair
+        most_volatile_pair, highest_score = sorted(pair_volatility.items(), key=lambda x: x[1], reverse=True)[0]
+        
+        # Determine color based on volatility
+        if highest_score > 4:
+            color = "#F44336"  # Red
+        elif highest_score > 2:
+            color = "#FF9800"  # Orange
+        elif highest_score > 1:
+            color = "#FFC107"  # Amber
+        else:
+            color = "#4CAF50"  # Green
+            
+        # Display in compact format
+        st.markdown(f"<div style='background-color:#121212;padding:5px;border-radius:5px;margin-top:-15px;'><span style='color:white;font-size:0.8rem;'>Most volatile: </span><span style='color:white;font-weight:bold;'>{most_volatile_pair}</span> <span style='color:{color};font-weight:bold;float:right;'>{highest_score:.2f}</span></div>", unsafe_allow_html=True)
+
+# Add a separator
+st.markdown("<hr style='margin-top:0.5rem; margin-bottom:1rem;'>", unsafe_allow_html=True)
+
+# Create an expandable section for detailed volatility information
+with st.expander("View Detailed Market Volatility Information", expanded=False):
+    vol_col1, vol_col2, vol_col3 = st.columns([1.5, 1, 1])
+    
+    with vol_col1:
+        # Pairs volatility
+        st.markdown("#### Volatility by Pair")
+        
+        if pair_volatility:
+            # Sort pairs by volatility (highest to lowest)
+            sorted_pairs = sorted(pair_volatility.items(), key=lambda x: x[1], reverse=True)
+            
+            # Create two columns for the pairs
+            pair_col1, pair_col2 = st.columns(2)
+            
+            with pair_col1:
+                # First half of the pairs
+                for i, (pair, score) in enumerate(sorted_pairs):
+                    if i >= len(sorted_pairs) / 2:
+                        break
+                        
+                    # Color code based on volatility
+                    if score > 4:
+                        color = "#F44336"  # Red
+                    elif score > 2:
+                        color = "#FF9800"  # Orange
+                    elif score > 1:
+                        color = "#FFC107"  # Amber
+                    else:
+                        color = "#4CAF50"  # Green
+                    
+                    st.markdown(f"<div style='display:flex;justify-content:space-between;'><span>{pair}</span><span style='color:{color};font-weight:bold;'>{score:.2f}</span></div>", unsafe_allow_html=True)
+            
+            with pair_col2:
+                # Second half of the pairs
+                for i, (pair, score) in enumerate(sorted_pairs):
+                    if i < len(sorted_pairs) / 2:
+                        continue
+                        
+                    # Color code based on volatility
+                    if score > 4:
+                        color = "#F44336"  # Red
+                    elif score > 2:
+                        color = "#FF9800"  # Orange
+                    elif score > 1:
+                        color = "#FFC107"  # Amber
+                    else:
+                        color = "#4CAF50"  # Green
+                    
+                    st.markdown(f"<div style='display:flex;justify-content:space-between;'><span>{pair}</span><span style='color:{color};font-weight:bold;'>{score:.2f}</span></div>", unsafe_allow_html=True)
+    
+    with vol_col2:
+        # Market status
+        st.markdown("#### Market Status")
+        
+        # Determine market status based on volatility
+        if volatility_index < 25:
+            status_color = "#4CAF50"  # Green
+            status_text = "Low Volatility"
+            status_desc = "Markets are calm with minimal price movement."
+        elif volatility_index < 50:
+            status_color = "#FFC107"  # Amber
+            status_text = "Normal Volatility"
+            status_desc = "Typical intraday movements within expected ranges."
+        elif volatility_index < 75:
+            status_color = "#FF9800"  # Orange
+            status_text = "Elevated Volatility"
+            status_desc = "Increased market movements. Monitor positions closely."
+        else:
+            status_color = "#F44336"  # Red
+            status_text = "High Volatility"
+            status_desc = "Extreme market movements. Use caution when trading."
+        
+        # Display status with color coding
+        st.markdown(f"<div style='background-color:#121212;padding:10px;border-radius:5px;'><p style='color:{status_color};font-weight:bold;font-size:18px;margin-bottom:5px;'>{status_text}</p><p style='color:white;font-size:14px;'>{status_desc}</p></div>", unsafe_allow_html=True)
+        
+        # Add a tip based on the volatility
+        st.markdown("#### Trading Tip")
+        if volatility_index < 25:
+            st.info("Consider range-bound strategies in this low volatility environment.")
+        elif volatility_index < 50:
+            st.info("Normal market conditions favor balanced trading approaches.")
+        elif volatility_index < 75:
+            st.warning("Consider reducing position sizes in elevated volatility.")
+        else:
+            st.error("High volatility suggests caution and reduced exposure.")
+    
+    with vol_col3:
+        # Volatility trend chart
+        st.markdown("#### Volatility Trend")
+        
+        # Check if we have volatility history
+        if 'volatility_history' not in st.session_state:
+            st.session_state.volatility_history = []
+        
+        # Add current volatility to history (keep last 30 points)
+        current_time = datetime.now()
+        st.session_state.volatility_history.append({
+            "timestamp": current_time,
+            "volatility": volatility_index
+        })
+        
+        # Keep only the latest 30 entries
+        if len(st.session_state.volatility_history) > 30:
+            st.session_state.volatility_history = st.session_state.volatility_history[-30:]
+        
+        # Create a trend chart if we have enough data
+        if len(st.session_state.volatility_history) > 1:
+            trend_df = pd.DataFrame(st.session_state.volatility_history)
+            
+            # Create a line chart
+            fig = px.line(trend_df, x="timestamp", y="volatility", 
+                         height=200)
+            
+            # Apply dark theme styling
+            fig.update_layout(
+                margin=dict(l=10, r=10, t=10, b=10),
+                paper_bgcolor="#121212",
+                plot_bgcolor="#121212",
+                font=dict(color="#FFFFFF"),
+                xaxis=dict(
+                    showgrid=False,
+                    zeroline=False,
+                    tickfont=dict(color="#FFFFFF", size=10)
+                ),
+                yaxis=dict(
+                    range=[0, 100],
+                    showgrid=True,
+                    gridcolor="#333333",
+                    tickcolor="#FFFFFF",
+                    tickfont=dict(color="#FFFFFF", size=10)
+                )
+            )
+            
+            # Change line color and add reference zones
+            fig.update_traces(line=dict(color="#4D9BF5", width=2))
+            
+            # Add color zones
+            fig.add_hrect(y0=0, y1=25, fillcolor="#4CAF50", opacity=0.1, line_width=0)
+            fig.add_hrect(y0=25, y1=50, fillcolor="#FFC107", opacity=0.1, line_width=0)
+            fig.add_hrect(y0=50, y1=75, fillcolor="#FF9800", opacity=0.1, line_width=0)
+            fig.add_hrect(y0=75, y1=100, fillcolor="#F44336", opacity=0.1, line_width=0)
+            
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Collecting volatility trend data...")
+
 
 # Right sidebar for subscription management
 with st.sidebar:
+    st.header("Market Selection")
+     
+    # Create toggle buttons for market selection
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        fx_button = st.button(
+            "FX Market", 
+            key="fx_toggle",
+            help="Switch to Foreign Exchange market pairs",
+            use_container_width=True
+        )
+    
+    with col2:
+        crypto_button = st.button(
+            "Crypto Market", 
+            key="crypto_toggle",
+            help="Switch to Cryptocurrency market pairs",
+            use_container_width=True
+        )
+    
+    # Show current market selection
+    current_market = st.session_state.market_type
+    
+    # Create a styled indicator for the current market
+    if current_market == 'FX':
+        st.markdown(
+            """
+            <div style="display: flex; justify-content: center; margin-bottom: 15px;">
+                <div style="background-color: #1E88E5; color: white; padding: 5px 15px; 
+                border-radius: 20px; font-weight: bold;">
+                    🌐 FX Market Mode
+                </div>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            """
+            <div style="display: flex; justify-content: center; margin-bottom: 15px;">
+                <div style="background-color: #9C27B0; color: white; padding: 5px 15px; 
+                border-radius: 20px; font-weight: bold;">
+                    ₿ Crypto Market Mode
+                </div>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
+    
+    # Add a separator
+    st.markdown("<hr>", unsafe_allow_html=True)
+    
+    # Handle market switching logic
+    if fx_button and st.session_state.market_type != 'FX':
+        # Save current crypto subscriptions
+        st.session_state.crypto_subscriptions = st.session_state.subscriptions
+        
+        # Switch to FX
+        st.session_state.market_type = 'FX'
+        
+        # Restore FX subscriptions
+        st.session_state.subscriptions = st.session_state.fx_subscriptions
+        
+        # Clear cached news and refresh data
+        st.session_state.cached_news = []
+        st.session_state.last_news_fetch = None
+        
+        # Update available currencies
+        available_currencies = fx_currencies
+        
+        # Notify user
+        add_notification("Switched to FX Market", "system")
+        
+        # Rerun to refresh the UI
+        st.rerun()
+        
+    if crypto_button and st.session_state.market_type != 'Crypto':
+        # Save current FX subscriptions
+        st.session_state.fx_subscriptions = st.session_state.subscriptions
+        
+        # Switch to Crypto
+        st.session_state.market_type = 'Crypto'
+        
+        # Restore crypto subscriptions
+        st.session_state.subscriptions = st.session_state.crypto_subscriptions
+        
+        # Clear cached news and refresh data
+        st.session_state.cached_news = []
+        st.session_state.last_news_fetch = None
+        
+        # Update available currencies
+        available_currencies = crypto_currencies
+        
+        # Notify user
+        add_notification("Switched to Crypto Market", "system")
+        
+        # Rerun to refresh the UI
+        st.rerun()
+
+    # Subscription management
     st.header("Currency Subscriptions")
 
     # Add new subscription form
@@ -669,7 +1417,7 @@ with st.sidebar:
         st.rerun()   
     
     
-    st.header("Manual Refreshes")
+    st.header("Manual Refreshes Calendar")
     if st.button("📅 Refresh Economic Calendar"):
         fetch_all_economic_events(force=True)
         add_notification("Economic calendar refreshed", "success")
@@ -730,6 +1478,7 @@ with st.sidebar:
         )
 
 
+
 # Debug helper function - add this to help troubleshoot
 def debug_rates_data(subscriptions):
     """Print debug information about the rates data structure"""
@@ -768,6 +1517,7 @@ if 'show_debug' in st.session_state and st.session_state.show_debug:
         debug_text = debug_rates_data(st.session_state.subscriptions)
         st.text_area("Rate Data Diagnostics", debug_text, height=400)
 
+
 # Calculate percentage variations
 variations = calculate_percentage_variation(st.session_state.subscriptions)
 
@@ -781,115 +1531,120 @@ with col4:
 
     # Conditionally display the geomaps
     if map_data:
-        # Create a layout with three columns
-        col1, col2, col3 = st.columns(3)
+        if st.session_state.market_type == 'FX':
+            # Use existing FX maps code
+            # Create a layout with three columns
+            col1, col2, col3 = st.columns(3)
 
-        # Map for the US continent
-        # Map for the US continent
-        with col1:
-            us_locations = ['United States', 'Canada', 'Mexico']
-            fig_us = go.Figure(data=go.Choropleth(
-                locations=[data["location"] for data in map_data if data["location"] in us_locations],
-                z=[data["variation"] for data in map_data if data["location"] in us_locations],
-                locationmode='country names',
-                colorscale='RdBu',
-                showscale=False,  # Hide color scale for US map
-                text=[f'{data["variation"]:.2f}%' for data in map_data if data["location"] in us_locations],
-                hoverinfo='text'
-            ))
-
-            fig_us.update_layout(
-                geo=dict(
-                    showframe=False,
-                    showcoastlines=False,
-                    projection_type='equirectangular',
-                    center=dict(lat=37.0902, lon=-95.7129),
-                    scope='north america'
-                ),
-                height=300,
-                margin=dict(l=0, r=0, t=0, b=0)
-            )
-
-            st.plotly_chart(fig_us, use_container_width=True)
-
-        # Map for Europe
-        with col2:
-            # Create a list of European countries directly from currency_to_country
-            euro_countries = currency_to_country['EUR']
-            if not isinstance(euro_countries, list):
-                euro_countries = [euro_countries]
-            
-            # Filter the map_data for European countries
-            euro_map_data = [data for data in map_data if data["location"] in euro_countries]
-            
-            if euro_map_data:
-                fig_europe = go.Figure(data=go.Choropleth(
-                    locations=[data["location"] for data in euro_map_data],
-                    z=[data["variation"] for data in euro_map_data],
+            # Map for the US continent
+            # Map for the US continent
+            with col1:
+                us_locations = ['United States', 'Canada', 'Mexico']
+                fig_us = go.Figure(data=go.Choropleth(
+                    locations=[data["location"] for data in map_data if data["location"] in us_locations],
+                    z=[data["variation"] for data in map_data if data["location"] in us_locations],
                     locationmode='country names',
                     colorscale='RdBu',
-                    showscale=False,  # Hide color scale for Europe map
-                    text=[f'{data["variation"]:.2f}%' for data in euro_map_data],
+                    showscale=False,  # Hide color scale for US map
+                    text=[f'{data["variation"]:.2f}%' for data in map_data if data["location"] in us_locations],
                     hoverinfo='text'
                 ))
 
-                fig_europe.update_layout(
+                fig_us.update_layout(
                     geo=dict(
                         showframe=False,
                         showcoastlines=False,
                         projection_type='equirectangular',
-                        center=dict(lat=54.5260, lon=15.2551),
-                        scope='europe'
+                        center=dict(lat=37.0902, lon=-95.7129),
+                        scope='north america'
                     ),
                     height=300,
                     margin=dict(l=0, r=0, t=0, b=0)
                 )
 
-                st.plotly_chart(fig_europe, use_container_width=True)
-            else:
-                st.info("No variation data available for European countries")
+                st.plotly_chart(fig_us, use_container_width=True)
 
-        # Map for Asia - SHOWING SCALE
-        with col3:
-            asia_countries = ['China', 'Japan', 'India', 'Singapore', 'Hong Kong']
-            
-            # Filter the map_data for Asian countries
-            asia_map_data = [data for data in map_data if data["location"] in asia_countries]
-            
-            if asia_map_data:
-                fig_asia = go.Figure(data=go.Choropleth(
-                    locations=[data["location"] for data in asia_map_data],
-                    z=[data["variation"] for data in asia_map_data],
-                    locationmode='country names',
-                    colorscale='RdBu',
-                    showscale=True,  # Show color scale ONLY for Asia map
-                    colorbar_title="% Variation",
-                    colorbar=dict(
-                        title="% Variation",
-                        thickness=15,
-                        len=0.7,
-                        x=0.9,
-                    ),
-                    text=[f'{data["variation"]:.2f}%' for data in asia_map_data],
-                    hoverinfo='text'
-                ))
+            # Map for Europe
+            with col2:
+                # Create a list of European countries directly from currency_to_country
+                euro_countries = currency_to_country['EUR']
+                if not isinstance(euro_countries, list):
+                    euro_countries = [euro_countries]
+                
+                # Filter the map_data for European countries
+                euro_map_data = [data for data in map_data if data["location"] in euro_countries]
+                
+                if euro_map_data:
+                    fig_europe = go.Figure(data=go.Choropleth(
+                        locations=[data["location"] for data in euro_map_data],
+                        z=[data["variation"] for data in euro_map_data],
+                        locationmode='country names',
+                        colorscale='RdBu',
+                        showscale=False,  # Hide color scale for Europe map
+                        text=[f'{data["variation"]:.2f}%' for data in euro_map_data],
+                        hoverinfo='text'
+                    ))
 
-                fig_asia.update_layout(
-                    geo=dict(
-                        showframe=False,
-                        showcoastlines=False,
-                        projection_type='equirectangular',
-                        center=dict(lat=35.8617, lon=104.1954),
-                        scope='asia'
-                    ),
-                    height=300,
-                    margin=dict(l=0, r=0, t=0, b=0)
-                )
+                    fig_europe.update_layout(
+                        geo=dict(
+                            showframe=False,
+                            showcoastlines=False,
+                            projection_type='equirectangular',
+                            center=dict(lat=54.5260, lon=15.2551),
+                            scope='europe'
+                        ),
+                        height=300,
+                        margin=dict(l=0, r=0, t=0, b=0)
+                    )
 
-                st.plotly_chart(fig_asia, use_container_width=True)
-            else:
-                st.info("No variation data available for Asian countries")
+                    st.plotly_chart(fig_europe, use_container_width=True)
+                else:
+                    st.info("No variation data available for European countries")
 
+            # Map for Asia - SHOWING SCALE
+            with col3:
+                asia_countries = ['China', 'Japan', 'India', 'Singapore', 'Hong Kong']
+                
+                # Filter the map_data for Asian countries
+                asia_map_data = [data for data in map_data if data["location"] in asia_countries]
+                
+                if asia_map_data:
+                    fig_asia = go.Figure(data=go.Choropleth(
+                        locations=[data["location"] for data in asia_map_data],
+                        z=[data["variation"] for data in asia_map_data],
+                        locationmode='country names',
+                        colorscale='RdBu',
+                        showscale=True,  # Show color scale ONLY for Asia map
+                        colorbar_title="% Variation",
+                        colorbar=dict(
+                            title="% Variation",
+                            thickness=15,
+                            len=0.7,
+                            x=0.9,
+                        ),
+                        text=[f'{data["variation"]:.2f}%' for data in asia_map_data],
+                        hoverinfo='text'
+                    ))
+
+                    fig_asia.update_layout(
+                        geo=dict(
+                            showframe=False,
+                            showcoastlines=False,
+                            projection_type='equirectangular',
+                            center=dict(lat=35.8617, lon=104.1954),
+                            scope='asia'
+                        ),
+                        height=300,
+                        margin=dict(l=0, r=0, t=0, b=0)
+                    )
+
+                    st.plotly_chart(fig_asia, use_container_width=True)
+                else:
+                    st.info("No variation data available for Asian countries")
+        else:
+            # Use crypto visualization instead
+            st.subheader("Cryptocurrency Market Overview")
+            display_crypto_market_visualization()
 
     # with col4:
     # Main area: Currency rates
@@ -1009,6 +1764,7 @@ with col4:
                 history_data = st.session_state.rate_history[pair_key]
                 df = pd.DataFrame(history_data)
                 
+                # Create dark-themed figure
                 fig = px.line(df, x="timestamp", y="rate", 
                             title=f"{sub['base']}/{sub['quote']} Rate History",
                             labels={"timestamp": "Time", "rate": "Rate"})
@@ -1027,9 +1783,36 @@ with col4:
                     # Add some padding to min/max values to make changes more visible
                     fig.update_yaxes(range=[min_rate * 0.999, max_rate * 1.001])
                 
-                fig.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
+                # Apply dark theme styling
+                fig.update_layout(
+                        height=300,
+                        margin=dict(l=0, r=0, t=40, b=0),
+                        paper_bgcolor="#121212",  # Dark background
+                        plot_bgcolor="#121212",   # Dark background
+                        font=dict(color="#FFFFFF"),  # Pure white text for better visibility
+                        title_font_color="#FFFFFF",  # Pure white title text
+                        xaxis=dict(
+                            gridcolor="#333333",  # Darker grid
+                            tickcolor="#FFFFFF",  # Pure white tick marks
+                            linecolor="#555555",  # Medium gray axis line
+                            tickfont=dict(color="#FFFFFF", size=12),  # Brighter, larger tick labels
+                            title_font=dict(color="#FFFFFF", size=14)  # Brighter, larger axis title
+                        ),
+                        yaxis=dict(
+                            gridcolor="#333333",  # Darker grid
+                            tickcolor="#FFFFFF",  # Pure white tick marks
+                            linecolor="#555555",  # Medium gray axis line
+                            tickfont=dict(color="#FFFFFF", size=12),  # Brighter, larger tick labels
+                            title_font=dict(color="#FFFFFF", size=14)  # Brighter, larger axis title
+                        )
+                    )
+                
+                # Change line color to a brighter shade
+                fig.update_traces(
+                    line=dict(color="#4D9BF5", width=2)  # Bright blue line
+                )
+                
                 st.plotly_chart(fig, use_container_width=True)
-
 # News feed
 with col5:
     st.header("Currency News")
