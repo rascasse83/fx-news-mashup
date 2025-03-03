@@ -15,6 +15,7 @@ import random
 from scrapers.news_scraper import scrape_yahoo_finance_news, create_mock_news
 from apis.rates_fetch import fetch_currency_rates, update_rates_with_variation, get_mock_currency_rates
 from scrapers.rates_scraper import scrape_yahoo_finance_rates
+from scrapers.economic_calendar_scraper import scrape_investing_economic_calendar, create_mock_economic_events, get_economic_events_for_currency
 from streamlit_autorefresh import st_autorefresh
 import plotly.graph_objects as go
 
@@ -112,10 +113,243 @@ def setup_auto_refresh():
         update_rates()
         
         # Handle news refresh (every 10th refresh cycle - 150 seconds = 2.5 minutes)
-        # We'll use the counter provided by st_autorefresh to determine when to refresh news
         if count % 20 == 0:
             st.session_state.last_news_auto_refresh_time = current_time
             fetch_news(use_mock_fallback=True)
+            
+        # Handle economic calendar refresh (every 240th refresh cycle - 1 hour)
+        # This ensures calendar data is refreshed periodically without manual intervention
+        if count % 240 == 0:
+            st.session_state.last_calendar_auto_refresh_time = current_time
+            fetch_all_economic_events(force=True)
+
+def display_economic_calendar_for_currency_pair(base, quote, debug_log=None):
+    """
+    Display economic calendar for a currency pair in a tab interface
+    
+    Args:
+        base: Base currency code (e.g. 'EUR')
+        quote: Quote currency code (e.g. 'USD')
+        debug_log: Optional list to append debug information
+    """
+    if debug_log is None:
+        debug_log = []
+    
+    # Get the cached economic events or fetch them if not available
+    if 'economic_events' not in st.session_state or st.session_state.economic_events is None:
+        fetch_all_economic_events()
+    
+    if 'economic_events' not in st.session_state or not st.session_state.economic_events:
+        st.info("No economic events data available. Please try refreshing the calendar.")
+        return
+    
+    # Filter events for the base and quote currencies
+    base_events = get_economic_events_for_currency(base, st.session_state.economic_events)
+    quote_events = get_economic_events_for_currency(quote, st.session_state.economic_events)
+    
+    # Create tabs for base, quote, and all events
+    tab1, tab2, tab3 = st.tabs([f"{base} Events", f"{quote} Events", "All Events"])
+    
+    with tab1:
+        if base_events:
+            display_economic_events(base_events)
+        else:
+            st.info(f"No upcoming economic events found for {base}")
+    
+    with tab2:
+        if quote_events:
+            display_economic_events(quote_events)
+        else:
+            st.info(f"No upcoming economic events found for {quote}")
+    
+    with tab3:
+        # For the "All Events" tab, show all events but highlight the ones for this pair
+        display_economic_events(st.session_state.economic_events, highlight_currencies=[base, quote])
+    
+    # Add a refresh button at the bottom
+    if st.button(f"Refresh Economic Calendar", key=f"refresh_calendar_{base}_{quote}"):
+        fetch_all_economic_events(force=True)
+        st.rerun()
+
+def display_economic_events(events, highlight_currencies=None):
+    """
+    Display economic events using a custom table layout built with Streamlit components.
+    This approach gives more control over the layout and allows for clickable elements.
+    
+    Args:
+        events: List of economic event dictionaries
+        highlight_currencies: Optional list of currencies to highlight
+    """
+    import pandas as pd
+    
+    if not events:
+        st.info("No economic events to display")
+        return
+    
+    # Sort events by date and time
+    sorted_events = sorted(events, 
+                          key=lambda x: (x.get('date', ''), x.get('time', '')))
+    
+    # Group events by date for better organization
+    events_by_date = {}
+    for event in sorted_events:
+        date = event.get('date', 'Unknown Date')
+        if date not in events_by_date:
+            events_by_date[date] = []
+        events_by_date[date].append(event)
+    
+    # Column proportions and headers
+    col_sizes = [1, 1, 1, 3, 1, 1, 1]
+    headers = ["Time", "Country", "Importance", "Event", "Actual", "Forecast", "Previous"]
+    
+    # Custom CSS for more compact styling
+    st.markdown("""
+    <style>
+    .compact-table-row p {
+        margin-bottom: 0.1rem !important;
+        font-size: 0.9rem !important;
+        line-height: 1.1 !important;
+    }
+    .compact-table-row a {
+        color: #0066cc !important;
+        text-decoration: none !important;
+    }
+    .compact-table-row a:hover {
+        text-decoration: underline !important;
+    }
+    .compact-divider {
+        margin-top: 0.2rem !important;
+        margin-bottom: 0.2rem !important;
+    }
+    .table-header p {
+        font-weight: bold !important;
+        color: #444444 !important;
+        margin-bottom: 0.3rem !important;
+    }
+    .event-date {
+        font-size: 1.1rem !important;
+        margin-top: 0.5rem !important;
+        margin-bottom: 0.3rem !important;
+        color: #333333 !important;
+        font-weight: 600 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Display events grouped by date
+    for date, date_events in events_by_date.items():
+        # Format date for display
+        try:
+            formatted_date = pd.to_datetime(date).strftime('%A, %B %d, %Y')
+        except:
+            formatted_date = date
+        
+        # Show date header    
+        st.markdown(f"<div class='event-date'>{formatted_date}</div>", unsafe_allow_html=True)
+        
+        # Add the column headers first
+        header_cols = st.columns(col_sizes)
+        for i, header in enumerate(headers):
+            with header_cols[i]:
+                st.markdown(f"<div class='table-header'><p>{header}</p></div>", unsafe_allow_html=True)
+        
+        # Add a divider after the header
+        st.markdown("<hr style='margin-top: 0.2rem; margin-bottom: 0.5rem;'>", unsafe_allow_html=True)
+        
+        # Create a table-like structure using columns for each event
+        for event in date_events:
+            # Determine if we should highlight this row
+            highlight_style = ""
+            if highlight_currencies and event.get('impact_currency') in highlight_currencies:
+                highlight_style = "background-color: rgba(255, 255, 0, 0.2);"
+            
+            # Container for each event
+            with st.container():
+                # Use columns to create a table-like row
+                cols = st.columns(col_sizes)
+                
+                # Add the compact-table-row class to make rows more condensed
+                for i, col in enumerate(cols):
+                    with col:
+                        if i == 0:  # Time
+                            st.markdown(f"<div class='compact-table-row' style='{highlight_style}'><p>{event.get('time', '')}</p></div>", unsafe_allow_html=True)
+                        elif i == 1:  # Country
+                            st.markdown(f"<div class='compact-table-row' style='{highlight_style}'><p>{event.get('country', '')}</p></div>", unsafe_allow_html=True)
+                        elif i == 2:  # Importance
+                            # Format importance as stars
+                            importance = event.get('importance', 0)
+                            importance_str = '⭐' * importance if importance else ''
+                            st.markdown(f"<div class='compact-table-row' style='{highlight_style}'><p>{importance_str}</p></div>", unsafe_allow_html=True)
+                        elif i == 3:  # Event
+                            # Format event name with link if URL is available
+                            event_name = event.get('event', '')
+                            event_url = event.get('event_url', '')
+                            
+                            if event_url:
+                                # Make URLs absolute
+                                if not event_url.startswith('http'):
+                                    event_url = f"https://www.investing.com{event_url}"
+                                
+                                st.markdown(f"<div class='compact-table-row' style='{highlight_style}'><p><a href='{event_url}' target='_blank'>{event_name}</a></p></div>", unsafe_allow_html=True)
+                            else:
+                                st.markdown(f"<div class='compact-table-row' style='{highlight_style}'><p>{event_name}</p></div>", unsafe_allow_html=True)
+                        elif i == 4:  # Actual
+                            st.markdown(f"<div class='compact-table-row' style='{highlight_style}'><p>{event.get('actual', '-')}</p></div>", unsafe_allow_html=True)
+                        elif i == 5:  # Forecast
+                            st.markdown(f"<div class='compact-table-row' style='{highlight_style}'><p>{event.get('forecast', '-')}</p></div>", unsafe_allow_html=True)
+                        elif i == 6:  # Previous
+                            st.markdown(f"<div class='compact-table-row' style='{highlight_style}'><p>{event.get('previous', '-')}</p></div>", unsafe_allow_html=True)
+            
+            # Add a thin divider between events (more compact)
+            st.markdown("<hr class='compact-divider' style='margin-top: 0.2rem; margin-bottom: 0.2rem;'>", unsafe_allow_html=True)
+
+def fetch_all_economic_events(force=False):
+    """
+    Fetch all economic events and cache them in the session state
+    
+    Args:
+        force: If True, forces a refresh regardless of cache
+    """
+    # Check if we need to refresh events
+    should_refresh = force
+    
+    if 'economic_events_last_fetch' not in st.session_state:
+        st.session_state.economic_events_last_fetch = None
+        should_refresh = True
+    
+    if not should_refresh and st.session_state.economic_events_last_fetch:
+        # Refresh every 6 hours
+        time_since_last_fetch = (datetime.now() - st.session_state.economic_events_last_fetch).total_seconds()
+        if time_since_last_fetch > 6 * 3600:  # 6 hours in seconds
+            should_refresh = True
+    
+    if should_refresh:
+        with st.spinner("Fetching economic calendar..."):
+            # Try to fetch real data
+            debug_log = []
+            events = scrape_investing_economic_calendar(days=7, debug_log=debug_log)
+            
+            # Fall back to mock data if needed
+            if not events:
+                st.info("Using sample economic calendar data")
+                events = create_mock_economic_events()
+            
+            st.session_state.economic_events = events
+            st.session_state.economic_events_last_fetch = datetime.now()
+            
+            # Notify user
+            add_notification(f"Economic calendar updated with {len(events)} events", "success")
+            return events
+    
+    return st.session_state.economic_events
+
+# Initialize the session state for economic events
+if 'economic_events' not in st.session_state:
+    st.session_state.economic_events = None
+
+if 'economic_events_last_fetch' not in st.session_state:
+    st.session_state.economic_events_last_fetch = None
+
 
 # Add the fetch_news function to your main app since it depends on st.session_state
 def fetch_news(currencies=None, use_mock_fallback=True):
@@ -418,6 +652,28 @@ with st.sidebar:
                 # Trigger an immediate update
                 update_rates()
 
+    st.header("Display Controls")
+    
+    # Add a collapse all button
+    if st.button("Collapse All Currency Cards"):
+        # Set a session state variable to indicate all cards should be collapsed
+        st.session_state.collapse_all_cards = True
+        add_notification("All currency cards collapsed", "info")
+        st.rerun()
+    
+    # Add an expand all button too for convenience
+    if st.button("Expand All Currency Cards"):
+        # Set a session state variable to indicate all cards should be expanded
+        st.session_state.collapse_all_cards = False
+        add_notification("All currency cards expanded", "info")
+        st.rerun()   
+    
+    
+    st.header("Manual Refreshes")
+    if st.button("📅 Refresh Economic Calendar"):
+        fetch_all_economic_events(force=True)
+        add_notification("Economic calendar refreshed", "success")
+
     # Manual refresh button
     st.button("🔄 Refresh Rates", on_click=update_rates)
     st.button("📰 Refresh News", on_click=lambda: fetch_news(use_mock_fallback=True))
@@ -529,6 +785,7 @@ with col4:
         col1, col2, col3 = st.columns(3)
 
         # Map for the US continent
+        # Map for the US continent
         with col1:
             us_locations = ['United States', 'Canada', 'Mexico']
             fig_us = go.Figure(data=go.Choropleth(
@@ -536,7 +793,7 @@ with col4:
                 z=[data["variation"] for data in map_data if data["location"] in us_locations],
                 locationmode='country names',
                 colorscale='RdBu',
-                colorbar_title="% Variation",
+                showscale=False,  # Hide color scale for US map
                 text=[f'{data["variation"]:.2f}%' for data in map_data if data["location"] in us_locations],
                 hoverinfo='text'
             ))
@@ -555,10 +812,9 @@ with col4:
 
             st.plotly_chart(fig_us, use_container_width=True)
 
-        # Map for Europe - FIXED
+        # Map for Europe
         with col2:
-            # Instead of using 'in currency_to_country['EUR']' which filters map_data incorrectly,
-            # create a list of European countries directly from currency_to_country
+            # Create a list of European countries directly from currency_to_country
             euro_countries = currency_to_country['EUR']
             if not isinstance(euro_countries, list):
                 euro_countries = [euro_countries]
@@ -572,7 +828,7 @@ with col4:
                     z=[data["variation"] for data in euro_map_data],
                     locationmode='country names',
                     colorscale='RdBu',
-                    colorbar_title="% Variation",
+                    showscale=False,  # Hide color scale for Europe map
                     text=[f'{data["variation"]:.2f}%' for data in euro_map_data],
                     hoverinfo='text'
                 ))
@@ -593,7 +849,7 @@ with col4:
             else:
                 st.info("No variation data available for European countries")
 
-        # Map for Asia - FIXED
+        # Map for Asia - SHOWING SCALE
         with col3:
             asia_countries = ['China', 'Japan', 'India', 'Singapore', 'Hong Kong']
             
@@ -606,7 +862,14 @@ with col4:
                     z=[data["variation"] for data in asia_map_data],
                     locationmode='country names',
                     colorscale='RdBu',
+                    showscale=True,  # Show color scale ONLY for Asia map
                     colorbar_title="% Variation",
+                    colorbar=dict(
+                        title="% Variation",
+                        thickness=15,
+                        len=0.7,
+                        x=0.9,
+                    ),
                     text=[f'{data["variation"]:.2f}%' for data in asia_map_data],
                     hoverinfo='text'
                 ))
@@ -626,11 +889,9 @@ with col4:
                 st.plotly_chart(fig_asia, use_container_width=True)
             else:
                 st.info("No variation data available for Asian countries")
-    else:
-        st.info("No data available to display on the maps. Please add subscriptions and wait for data to be fetched.")
 
 
-# with col4:
+    # with col4:
     # Main area: Currency rates
     st.header("Currency Rates")
 
@@ -644,123 +905,130 @@ with col4:
         key_base = f"{sub['base']}_{sub['quote']}_{i}"
 
         # Create a card using Streamlit's expander
-        with st.expander(f"{sub['base']}/{sub['quote']}", expanded=True):
-            # Top row with currency pair and remove button
-            col6, col7 = st.columns([3, 1])
-            with col6:
-                st.markdown(f"### {sub['base']}/{sub['quote']}")
-            with col7:
-                if st.button("Remove", key=f"remove_{key_base}"):
-                    st.session_state.subscriptions.pop(i)
-                    add_notification(f"Removed subscription: {sub['base']}/{sub['quote']}", "system")
-                    st.rerun()
+        with st.expander(f"{sub['base']}/{sub['quote']}", expanded=not st.session_state.get('collapse_all_cards', False)):
+            # Add tabs for Rate Info and Economic Calendar
+            rate_tab, calendar_tab = st.tabs(["Rate Info", "Economic Calendar"])
+            
+            with rate_tab:
+                # Top row with currency pair and remove button
+                col6, col7 = st.columns([3, 1])
+                with col6:
+                    st.markdown(f"### {sub['base']}/{sub['quote']}")
+                with col7:
+                    if st.button("Remove", key=f"remove_{key_base}"):
+                        st.session_state.subscriptions.pop(i)
+                        add_notification(f"Removed subscription: {sub['base']}/{sub['quote']}", "system")
+                        st.rerun()
 
-            # Rate information
-            if sub["current_rate"] is not None:
-                # Format the current rate with appropriate decimal places
-                if sub["current_rate"] < 0.01:
-                    formatted_rate = f"{sub['current_rate']:.6f}"
-                elif sub["current_rate"] < 1:
-                    formatted_rate = f"{sub['current_rate']:.4f}"
-                else:
-                    formatted_rate = f"{sub['current_rate']:.4f}"
-                
-                # Format the previous close rate if available
-                previous_rate_text = "N/A"
-                if sub.get("previous_close") is not None:
-                    prev_rate = sub["previous_close"]
-                    if prev_rate < 0.01:
-                        previous_rate_text = f"{prev_rate:.6f}"
-                    elif prev_rate < 1:
-                        previous_rate_text = f"{prev_rate:.4f}"
+                # Rate information
+                if sub["current_rate"] is not None:
+                    # Format the current rate with appropriate decimal places
+                    if sub["current_rate"] < 0.01:
+                        formatted_rate = f"{sub['current_rate']:.6f}"
+                    elif sub["current_rate"] < 1:
+                        formatted_rate = f"{sub['current_rate']:.4f}"
                     else:
-                        previous_rate_text = f"{prev_rate:.4f}"
-
-                # Determine rate direction and color
-                direction_arrow = ""
-                color = "gray"
-                direction_class = "rate-neutral"
-                
-                # Use previous_close if available, otherwise fall back to last_rate
-                reference_rate = None
-                if sub.get("previous_close") is not None:
-                    reference_rate = sub["previous_close"]
-                elif sub.get("last_rate") is not None:
-                    reference_rate = sub["last_rate"]
+                        formatted_rate = f"{sub['current_rate']:.4f}"
                     
-                if reference_rate is not None:
-                    if sub["current_rate"] > reference_rate:
-                        direction_arrow = "▲"
-                        color = "green"
-                        direction_class = "rate-up"
-                    elif sub["current_rate"] < reference_rate:
-                        direction_arrow = "▼"
-                        color = "red"
-                        direction_class = "rate-down"
+                    # Format the previous close rate if available
+                    previous_rate_text = "N/A"
+                    if sub.get("previous_close") is not None:
+                        prev_rate = sub["previous_close"]
+                        if prev_rate < 0.01:
+                            previous_rate_text = f"{prev_rate:.6f}"
+                        elif prev_rate < 1:
+                            previous_rate_text = f"{prev_rate:.4f}"
+                        else:
+                            previous_rate_text = f"{prev_rate:.4f}"
 
-                # Add rate information to HTML
-                html = f"""
-                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                    <span>Current Rate:</span>
-                    <span class="{direction_class}">{formatted_rate} {direction_arrow}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                    <span>Previous Close:</span>
-                    <span style="color: #6c757d;">{previous_rate_text}</span>
-                </div>
-                """
-                st.markdown(html, unsafe_allow_html=True)
+                    # Determine rate direction and color
+                    direction_arrow = ""
+                    color = "gray"
+                    direction_class = "rate-neutral"
+                    
+                    # Use previous_close if available, otherwise fall back to last_rate
+                    reference_rate = None
+                    if sub.get("previous_close") is not None:
+                        reference_rate = sub["previous_close"]
+                    elif sub.get("last_rate") is not None:
+                        reference_rate = sub["last_rate"]
+                        
+                    if reference_rate is not None:
+                        if sub["current_rate"] > reference_rate:
+                            direction_arrow = "▲"
+                            color = "green"
+                            direction_class = "rate-up"
+                        elif sub["current_rate"] < reference_rate:
+                            direction_arrow = "▼"
+                            color = "red"
+                            direction_class = "rate-down"
 
-                # Add percent change if available
-                if reference_rate is not None:
-                    percent_change = ((sub["current_rate"] - reference_rate) / reference_rate) * 100
-                    change_color = "green" if percent_change > 0 else "red" if percent_change < 0 else "gray"
-                    sign = "+" if percent_change > 0 else ""
-                    st.markdown(f"**Change:** <span style='color:{change_color};font-weight:bold;'>{sign}{percent_change:.4f}%</span>", unsafe_allow_html=True)
-            else:
-                st.info("Loading rate data...")
+                    # Add rate information to HTML
+                    html = f"""
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span>Current Rate:</span>
+                        <span class="{direction_class}">{formatted_rate} {direction_arrow}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span>Previous Close:</span>
+                        <span style="color: #6c757d;">{previous_rate_text}</span>
+                    </div>
+                    """
+                    st.markdown(html, unsafe_allow_html=True)
 
-            # Threshold slider
-            new_threshold = st.slider(
-                "Alert threshold (%)",
-                min_value=0.1,
-                max_value=5.0,
-                value=float(sub["threshold"]),
-                step=0.1,
-                key=f"threshold_slider_{key_base}"
-            )
+                    # Add percent change if available
+                    if reference_rate is not None:
+                        percent_change = ((sub["current_rate"] - reference_rate) / reference_rate) * 100
+                        change_color = "green" if percent_change > 0 else "red" if percent_change < 0 else "gray"
+                        sign = "+" if percent_change > 0 else ""
+                        st.markdown(f"**Change:** <span style='color:{change_color};font-weight:bold;'>{sign}{percent_change:.4f}%</span>", unsafe_allow_html=True)
+                else:
+                    st.info("Loading rate data...")
 
-            if new_threshold != sub["threshold"]:
-                st.session_state.subscriptions[i]["threshold"] = new_threshold
-                add_notification(f"Updated threshold for {sub['base']}/{sub['quote']} to {new_threshold}%", "system")
+                # Threshold slider
+                new_threshold = st.slider(
+                    "Alert threshold (%)",
+                    min_value=0.1,
+                    max_value=5.0,
+                    value=float(sub["threshold"]),
+                    step=0.1,
+                    key=f"threshold_slider_{key_base}"
+                )
 
-        # Chart of rate history
-        pair_key = f"{sub['base'].lower()}_{sub['quote'].lower()}"
-        # In the section where we create the rate history chart
-        if pair_key in st.session_state.rate_history and len(st.session_state.rate_history[pair_key]) > 1:
-            history_data = st.session_state.rate_history[pair_key]
-            df = pd.DataFrame(history_data)
-            
-            fig = px.line(df, x="timestamp", y="rate", 
-                        title=f"{sub['base']}/{sub['quote']} Rate History",
-                        labels={"timestamp": "Time", "rate": "Rate"})
-            
-            # Calculate range values for better visualization
-            min_rate = df['rate'].min()
-            max_rate = df['rate'].max()
-            rate_range = max_rate - min_rate
-            
-            # If range is very small, create a custom range to make changes more visible
-            if rate_range < 0.001:
-                # Use a small fixed range around the mean
-                mean_rate = df['rate'].mean()
-                fig.update_yaxes(range=[mean_rate * 0.9995, mean_rate * 1.0005])
-            elif rate_range < 0.01:
-                # Add some padding to min/max values to make changes more visible
-                fig.update_yaxes(range=[min_rate * 0.999, max_rate * 1.001])
-            
-            fig.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
-            st.plotly_chart(fig, use_container_width=True)
+                if new_threshold != sub["threshold"]:
+                    st.session_state.subscriptions[i]["threshold"] = new_threshold
+                    add_notification(f"Updated threshold for {sub['base']}/{sub['quote']} to {new_threshold}%", "system")
+                    
+            with calendar_tab:
+                # Display the economic calendar for this currency pair
+                display_economic_calendar_for_currency_pair(sub['base'], sub['quote'])
+
+            # Chart of rate history (outside the tabs)
+            pair_key = f"{sub['base'].lower()}_{sub['quote'].lower()}"
+            if pair_key in st.session_state.rate_history and len(st.session_state.rate_history[pair_key]) > 1:
+                history_data = st.session_state.rate_history[pair_key]
+                df = pd.DataFrame(history_data)
+                
+                fig = px.line(df, x="timestamp", y="rate", 
+                            title=f"{sub['base']}/{sub['quote']} Rate History",
+                            labels={"timestamp": "Time", "rate": "Rate"})
+                
+                # Calculate range values for better visualization
+                min_rate = df['rate'].min()
+                max_rate = df['rate'].max()
+                rate_range = max_rate - min_rate
+                
+                # If range is very small, create a custom range to make changes more visible
+                if rate_range < 0.001:
+                    # Use a small fixed range around the mean
+                    mean_rate = df['rate'].mean()
+                    fig.update_yaxes(range=[mean_rate * 0.9995, mean_rate * 1.0005])
+                elif rate_range < 0.01:
+                    # Add some padding to min/max values to make changes more visible
+                    fig.update_yaxes(range=[min_rate * 0.999, max_rate * 1.001])
+                
+                fig.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
+                st.plotly_chart(fig, use_container_width=True)
 
 # News feed
 with col5:
@@ -863,9 +1131,17 @@ with col5:
     else:
         st.info("No news items match your filters")
 
-# Handle auto-refresh at the end of the script
-with st.spinner("Updating currency rates..."):
-    update_rates()
+# 7. Fetch the economic calendar data on app load (if not already cached)
+# Add this at the end of your script
+if 'economic_events' not in st.session_state or st.session_state.economic_events is None:
+    with st.spinner("Updating economic calendar..."):
+            fetch_all_economic_events(force=True)
+            st.rerun()
 
-with st.spinner("Fetching the latest news..."):
-    fetch_news(use_mock_fallback=True)   
+if st.session_state.last_refresh is None: 
+    with st.spinner("Updating currency rates..."):
+        update_rates()
+
+if st.session_state.last_news_fetch is None: 
+    with st.spinner("Fetching the latest news..."):
+        fetch_news(use_mock_fallback=True)   
