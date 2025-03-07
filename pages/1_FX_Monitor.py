@@ -12,19 +12,18 @@ import re
 from bs4 import BeautifulSoup
 import os
 import random
-from scrapers.news_scraper import scrape_yahoo_finance_news, create_mock_news
-from apis.rates_fetch import fetch_currency_rates, update_rates_with_variation, get_mock_currency_rates
-from scrapers.rates_scraper import scrape_yahoo_finance_rates
-from scrapers.economic_calendar_scraper import scrape_investing_economic_calendar, create_mock_economic_events, get_economic_events_for_currency
-from scrapers.coinmarketcap_scraper import fetch_crypto_events
+from fx_news.scrapers.news_scraper import scrape_yahoo_finance_news, create_mock_news
+from fx_news.apis.rates_fetch import fetch_currency_rates, update_rates_with_variation, get_mock_currency_rates
+from fx_news.scrapers.rates_scraper import scrape_yahoo_finance_rates
+from fx_news.scrapers.economic_calendar_scraper import scrape_investing_economic_calendar, create_mock_economic_events, get_economic_events_for_currency
+from fx_news.scrapers.coinmarketcap_scraper import fetch_crypto_events
 from streamlit_autorefresh import st_autorefresh
 import plotly.graph_objects as go
 import arrow
 
 # Configure page
 st.set_page_config(
-    page_title="FX Pulsar",
-    # page_icon="💱",
+    page_title="FX Pulsar - Market Monitor",
     page_icon="https://images.seeklogo.com/logo-png/60/1/lmax-digital-icon-black-logo-png_seeklogo-609777.png",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -1450,6 +1449,19 @@ with st.expander("View Detailed Market Volatility Information", expanded=False):
 
 # Right sidebar for subscription management
 with st.sidebar:
+
+    # Add some space
+    st.markdown("---")
+    st.subheader("Navigation")
+    
+    # Button to navigate to News Summarizer
+    if st.button("📰 Go to News Summarizer", use_container_width=True):
+        st.switch_page("pages/2_News_Summarizer.py")
+    
+    # Button to return to home
+    if st.button("🏠 Return to Home", use_container_width=True):
+        st.switch_page("Home.py")
+        
     st.header("Market Selection")
      
     # Create toggle buttons for market selection

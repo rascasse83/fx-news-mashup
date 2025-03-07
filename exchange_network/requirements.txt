@@ -1,0 +1,12 @@
+plotly
+streamlit-autorefresh
+logging
+networkx
+tempfile
+math
+pandas
+pyvis
+python-louvain
+# pyvis.network
+# transformers
+# torch

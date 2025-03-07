@@ -10,9 +10,10 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
 # Page configuration
 st.set_page_config(
-    page_title="FX News Summarizer",
-    page_icon="💱",
-    layout="wide"
+    page_title="FX Pulsar - News Summarizer",
+    page_icon="https://images.seeklogo.com/logo-png/60/1/lmax-digital-icon-black-logo-png_seeklogo-609777.png",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 # Initialize session state variables if they don't exist
@@ -221,6 +222,18 @@ def generate_summaries(news_df, summary_length, include_sentiment, tokenizer, mo
 
 # Sidebar for configurations
 with st.sidebar:
+     # Add some space at the bottom of the sidebar
+    st.markdown("---")
+    st.subheader("Navigation")
+    
+    # Button to navigate to FX Monitor
+    if st.button("💱 Go to FX Monitor", use_container_width=True):
+        st.switch_page("pages/1_FX_Monitor.py")
+    
+    # Button to return to home
+    if st.button("🏠 Return to Home", use_container_width=True):
+        st.switch_page("Home.py")     
+    
     st.header("Configuration")
     
     # Model loading section
