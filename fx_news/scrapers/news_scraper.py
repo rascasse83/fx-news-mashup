@@ -9,6 +9,8 @@ from textblob import TextBlob
 import logging
 from transformers import BertTokenizer, BertForSequenceClassification
 import torch
+from fx_news.scrapers.article_downloader import download_news_articles
+
 
 # Load the FinBERT model and tokenizer
 model_name = "yiyanghkust/finbert-tone"
@@ -132,6 +134,7 @@ def scrape_yahoo_finance_news(currency_pairs, max_articles=5, debug_log=None):
             pair_news = []
             for item in news_items[:max_articles]:
                 try:
+
                     # Extract title and other data...
                     # ... [rest of your function remains the same]
                     # Extract title
@@ -148,6 +151,11 @@ def scrape_yahoo_finance_news(currency_pairs, max_articles=5, debug_log=None):
                     if link and not link.startswith('http'):
                         link = f"https://uk.finance.yahoo.com{link}"
                     
+                    # Download and save the articles
+                    saved_files = download_news_articles(link, folder="yahoo")
+                    print(f"Successfully downloaded and saved {len(saved_files)} articles")
+
+
                     # Extract source and timestamp
                     publishing_element = item.select_one('div.publishing')
                     source = "Yahoo Finance"
