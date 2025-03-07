@@ -16,8 +16,10 @@ from scrapers.news_scraper import scrape_yahoo_finance_news, create_mock_news
 from apis.rates_fetch import fetch_currency_rates, update_rates_with_variation, get_mock_currency_rates
 from scrapers.rates_scraper import scrape_yahoo_finance_rates
 from scrapers.economic_calendar_scraper import scrape_investing_economic_calendar, create_mock_economic_events, get_economic_events_for_currency
+from scrapers.coinmarketcap_scraper import fetch_crypto_events
 from streamlit_autorefresh import st_autorefresh
 import plotly.graph_objects as go
+import arrow
 
 # Configure page
 st.set_page_config(
@@ -111,7 +113,7 @@ currency_to_country = {
 }
 
 if 'market_type' not in st.session_state:
-    st.session_state.market_type = 'FX'  # Default to FX market
+    st.session_state.market_type = 'Crypto'  # Default to FX market
 
 # Initialize session state only once
 for key, default_value in {
@@ -143,6 +145,16 @@ else:
     # For crypto, we might want to create a special mapping
     # or just use a simpler representation for the map
 
+
+# Initialize the session state for crypto events if not yet done
+if 'crypto_events' not in st.session_state:
+    st.session_state.crypto_events = None
+
+if 'crypto_events_last_fetch' not in st.session_state:
+    st.session_state.crypto_events_last_fetch = None
+    
+
+
 # Fetch API key from environment variables
 API_KEY = os.getenv("CURRENCY_API_KEY")
 
@@ -173,10 +185,184 @@ def setup_auto_refresh():
             st.session_state.last_calendar_auto_refresh_time = current_time
             fetch_all_economic_events(force=True)
 
+# Add this to your main app to handle crypto calendar events
+
+def display_crypto_calendar_for_currency(base, quote, debug_log=None):
+    if debug_log is None:
+        debug_log = []
+    
+    if 'crypto_events' not in st.session_state or not st.session_state.crypto_events:
+        fetch_all_crypto_events()
+    
+    if not st.session_state.crypto_events:
+        st.info("No crypto events data available. Please try refreshing the calendar.")
+        return
+    
+    unique_id_2 = f"{base}_{quote}_{random.randint(1000, 9999)}"
+    
+    base_events = [event for event in st.session_state.crypto_events if base.upper() in event['coin'].upper()]
+    
+    tab1, tab2 = st.tabs([f"{base} Events", "All Crypto Events"])
+    
+    with tab1:
+        if base_events:
+            display_crypto_events(base_events)
+        else:
+            st.info(f"No upcoming events found for {base}")
+    
+    with tab2:
+        display_crypto_events(st.session_state.crypto_events)
+    
+    if st.button(f"Refresh Crypto Calendar", key=f"refresh_crypto_calendar_{unique_id_2}"):
+        fetch_all_crypto_events(force=True)
+        st.rerun()
+
+def display_crypto_events(events, highlight_coins=None):
+    if not events:
+        st.info("No crypto events to display")
+        return
+
+    event_types = set(event['type'] for event in events)
+    
+    for event_type in event_types:
+        filtered_events = [e for e in events if e['type'] == event_type]
+        st.markdown(f"### {event_type} Events")
+        for event in filtered_events:
+            render_crypto_event_card(event, highlight_coins)
+
+
+def render_crypto_event_card(event, highlight_coins=None):
+    highlight = highlight_coins and any(coin.upper() in event['coin'].upper() for coin in highlight_coins)
+
+    bg_color = "#1E1E1E" if highlight else "#121212"
+    border_color = "#4CAF50" if highlight else "#333333"
+
+    type_color = {  
+        "Release": "#4CAF50",
+        "AMA": "#9C27B0",
+        "Airdrop": "#FF9800",
+        "Partnership": "#2196F3",
+        "Tokenomics": "#F44336"
+    }.get(event.get('type'), "#1E88E5")
+    
+    date_str = event.get('date', '')
+    if date_str:
+        try:
+            date_obj = datetime.datetime.strptime(date_str, '%Y-%m-%d')
+            date_str = date_obj.strftime('%a, %b %d')
+        except:
+            pass
+
+    card_html = f"""
+    <div style="background-color:{bg_color}; border-left:4px solid {border_color}; padding:15px; margin-bottom:15px; border-radius:5px;">
+        <div style="display:flex; align-items:center; margin-bottom:10px;">
+            <span style="font-weight:bold; color:white;">{event.get('coin', '')}</span>
+            <div style="margin-left:auto; background-color:{type_color}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem;">
+                {event.get('type', 'Event')}
+            </div>
+        </div>
+        <div>
+            <a href="{event.get('url', '#')}" target="_blank" style="color:white; text-decoration:none; font-weight:bold; font-size:1.1rem;">
+                {event.get('title', 'Event')} 🔗
+            </a>
+            <p style="color:#CCCCCC; margin-top:5px; margin-bottom:10px; font-size:0.9rem;">
+                {event.get('description', '')}
+            </p>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="color:#999; font-size:0.8rem;">
+                {date_str}
+            </div>
+        </div>
+    </div>
+    """
+    st.markdown(card_html, unsafe_allow_html=True)
+
+def is_valid_event(event):
+    """
+    Validate if the event has the necessary structure and data.
+    Modify this function based on what constitutes a valid event.
+    """
+    # Updated keys based on the event structure
+    required_keys = ['title', 'description', 'type', 'coin', 'date', 'url']
+    
+    if not isinstance(event, dict):
+        return False
+    
+    # Check if all required keys are present
+    for key in required_keys:
+        if key not in event:
+            return False
+    
+    # Additional checks can be added here, such as checking the date format
+    if event.get('date'):
+        try:
+            # Example: Check if the date is a valid date string (you can refine this check as needed)
+            datetime.strptime(event['date'], '%Y-%m-%d')
+        except ValueError:
+            return False
+    
+    return True
+
+def fetch_all_crypto_events(force=False):
+    """
+    Fetch all crypto events and cache them in the session state
+    
+    Args:
+        force: If True, forces a refresh regardless of cache
+    """
+    # Check if we need to refresh events
+    if force:
+        should_refresh = True
+    else:
+        # Only refresh if the cache has expired or it's the first time fetching
+        last_fetch = st.session_state.get('crypto_events_last_fetch', None)
+        if last_fetch is None or (datetime.now() - last_fetch).total_seconds() > 3 * 3600:  # 3 hours
+            should_refresh = True
+        else:
+            should_refresh = False
+
+    if should_refresh:
+        with st.spinner("Fetching crypto calendar..."):
+            print("Fetching crypto calendar")
+            debug_log = []  # Placeholder for debugging, consider using it for logging if needed
+            events_json_str = fetch_crypto_events(days=7, use_mock_fallback=True, debug_log=debug_log)
+            
+            # Parse the JSON string into a Python list
+            try:
+                events = json.loads(events_json_str)
+            except json.JSONDecodeError:
+                st.warning("Failed to parse crypto events data.")
+                events = []
+
+            if events:
+                # Filter only valid events
+                valid_events = [event for event in events if is_valid_event(event)]
+                    
+                if valid_events:
+                    # Save to session state
+                    st.session_state.crypto_events = valid_events
+                    st.session_state.crypto_events_last_fetch = datetime.now()
+
+                    # Notify user
+                    add_notification(f"Crypto calendar updated with {len(valid_events)} valid events", "success")
+                    # Debugging
+                    print(f"Fetched valid events: {valid_events}")
+                else:
+                    st.warning("No valid events found")
+                    st.session_state.crypto_events = []
+            else:
+                st.warning("Could not fetch crypto events")
+                st.session_state.crypto_events = []
+    
+    # Return the cached or fetched valid events
+    return st.session_state.get('crypto_events', [])
+
+
 def display_economic_calendar_for_currency_pair(base, quote, debug_log=None):
     """
     Display economic calendar for a currency pair in a tab interface,
-    or crypto news for crypto pairs
+    or crypto events for crypto pairs
     
     Args:
         base: Base currency code (e.g. 'EUR' or 'BTC')
@@ -186,31 +372,12 @@ def display_economic_calendar_for_currency_pair(base, quote, debug_log=None):
     if debug_log is None:
         debug_log = []
     
+    unique_id_1 = f"{base}_{quote}_{random.randint(1000, 9999)}"
+
     # Check if we're in crypto mode
     if st.session_state.market_type == 'Crypto':
-        st.markdown(f"### {base}/{quote} News and Events")
-        
-        # For crypto, we'll show crypto-specific news instead of economic calendar
-        st.info("Crypto-specific calendar events are not available. Consider visiting CoinMarketCal or other crypto event calendars for upcoming events.")
-        
-        # You could implement a crypto news scraper here, or use a placeholder
-        st.markdown("#### Recent Crypto News")
-        news_items = []
-        
-        # If you have news in your cached news, filter for this pair
-        if 'cached_news' in st.session_state and st.session_state.cached_news:
-            for item in st.session_state.cached_news:
-                if base in item.get('currency', '') or quote in item.get('currency', ''):
-                    news_items.append(item)
-        
-        if news_items:
-            for item in news_items[:3]:  # Show top 3 news items
-                st.markdown(f"**{item.get('title', 'News Title')}**")
-                st.markdown(f"Source: {item.get('source', 'Unknown')} - {item.get('timestamp', datetime.now()).strftime('%Y-%m-%d')}")
-                st.markdown("---")
-        else:
-            st.info(f"No recent news found for {base}/{quote}")
-        
+        # For crypto pairs, show the crypto calendar
+        display_crypto_calendar_for_currency(base, quote, debug_log)
         return
     
     # For FX mode, use the existing economic calendar logic
@@ -225,6 +392,7 @@ def display_economic_calendar_for_currency_pair(base, quote, debug_log=None):
     # Filter events for the base and quote currencies
     base_events = get_economic_events_for_currency(base, st.session_state.economic_events)
     quote_events = get_economic_events_for_currency(quote, st.session_state.economic_events)
+
     
     # Create tabs for base, quote, and all events
     tab1, tab2, tab3 = st.tabs([f"{base} Events", f"{quote} Events", "All Events"])
@@ -246,9 +414,10 @@ def display_economic_calendar_for_currency_pair(base, quote, debug_log=None):
         display_economic_events(st.session_state.economic_events, highlight_currencies=[base, quote])
     
     # Add a refresh button at the bottom
-    if st.button(f"Refresh Economic Calendar", key=f"refresh_calendar_{base}_{quote}"):
+    if st.button(f"Refresh Economic Calendar", key=f"refresh_calendar_{unique_id_1}"):
         fetch_all_economic_events(force=True)
-        st.rerun()
+        st.rerun()   
+    
 
 def display_economic_events(events, highlight_currencies=None):
     """
@@ -1055,17 +1224,30 @@ volatility_index, pair_volatility = calculate_market_volatility(st.session_state
 header_col1, header_col2 = st.columns([2, 1])
 
 with header_col1:
-    # Main app header
-    st.markdown("<h1 class='main-header'>💱 FX Currency Monitor</h1>", unsafe_allow_html=True)
-    
-    # Display the text with a link on the word "sentiment"
-    sentiment_url = "https://huggingface.co/yiyanghkust/finbert-tone"
-    st.markdown(
-        f"Real-time FX rates and news sentiment monitoring [.]({sentiment_url})",
-        unsafe_allow_html=True
-    )
+    # Dynamic title based on market type
+    if st.session_state.market_type == 'FX':
+        st.markdown("<h1 class='main-header'>💱 FX Market Monitor</h1>", unsafe_allow_html=True)
+        
+        # Display the text with a link on the word "sentiment"
+        sentiment_url = "https://huggingface.co/yiyanghkust/finbert-tone"
+        st.markdown(
+            f"Real-time FX rates and news sentiment monitoring [.]({sentiment_url})",
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown("<h1 class='main-header'>₿ Crypto Market Monitor</h1>", unsafe_allow_html=True)
+        
+        # Updated subtitle for crypto mode
+        sentiment_url = "https://huggingface.co/yiyanghkust/finbert-tone"
+        st.markdown(
+            f"Real-time cryptocurrency prices and market sentiment [.]({sentiment_url})",
+            unsafe_allow_html=True
+        )
 
 with header_col2:
+    # Volatility index calculation remains the same
+    volatility_index, pair_volatility = calculate_market_volatility(st.session_state.subscriptions)
+    
     # Create a compact volatility gauge
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
@@ -1115,7 +1297,6 @@ with header_col2:
             
         # Display in compact format
         st.markdown(f"<div style='background-color:#121212;padding:5px;border-radius:5px;margin-top:-15px;'><span style='color:white;font-size:0.8rem;'>Most volatile: </span><span style='color:white;font-weight:bold;'>{most_volatile_pair}</span> <span style='color:{color};font-weight:bold;float:right;'>{highest_score:.2f}</span></div>", unsafe_allow_html=True)
-
 # Add a separator
 st.markdown("<hr style='margin-top:0.5rem; margin-bottom:1rem;'>", unsafe_allow_html=True)
 

@@ -7,34 +7,34 @@ from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from textblob import TextBlob
 import logging
-# from transformers import BertTokenizer, BertForSequenceClassification
-# import torch
+from transformers import BertTokenizer, BertForSequenceClassification
+import torch
 
 # Load the FinBERT model and tokenizer
-# model_name = "yiyanghkust/finbert-tone"
-# tokenizer = BertTokenizer.from_pretrained(model_name)
-# model = BertForSequenceClassification.from_pretrained(model_name)
+model_name = "yiyanghkust/finbert-tone"
+tokenizer = BertTokenizer.from_pretrained(model_name)
+model = BertForSequenceClassification.from_pretrained(model_name)
 
-# def analyze_sentiment_finbert(text):
-#     # Tokenize the input text
-#     inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True)
+def analyze_sentiment_finbert(text):
+    # Tokenize the input text
+    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True)
 
-#     # Perform inference
-#     with torch.no_grad():
-#         outputs = model(**inputs)
+    # Perform inference
+    with torch.no_grad():
+        outputs = model(**inputs)
 
-#     # Get the predicted sentiment score
-#     logits = outputs.logits
-#     predicted_class = torch.argmax(logits, dim=1).item()
+    # Get the predicted sentiment score
+    logits = outputs.logits
+    predicted_class = torch.argmax(logits, dim=1).item()
 
-#     # Map the predicted class to a sentiment label
-#     sentiment_label = {
-#         0: "negative",
-#         1: "neutral",
-#         2: "positive"
-#     }
+    # Map the predicted class to a sentiment label
+    sentiment_label = {
+        0: "negative",
+        1: "neutral",
+        2: "positive"
+    }
 
-#     return sentiment_label[predicted_class]
+    return sentiment_label[predicted_class]
 
 def format_currency_pair_for_yahoo(base, quote):
     """
@@ -139,6 +139,8 @@ def scrape_yahoo_finance_news(currency_pairs, max_articles=5, debug_log=None):
                     if not title_element:
                         continue
                     title = title_element.text.strip()
+                    # print("Title")
+                    # print(title)
                     
                     # Extract link
                     link_element = item.select_one('a.subtle-link[data-ylk*="elm:hdln"]')
@@ -225,31 +227,35 @@ def scrape_yahoo_finance_news(currency_pairs, max_articles=5, debug_log=None):
                     summary_element = item.select_one('p.clamp')
                     if summary_element:
                         news_item["summary"] = summary_element.text.strip()
+                        # print("Summary")
+                        # print(news_item["summary"])
                     
                     # # Analyze sentiment using TextBlob
-                    text_for_sentiment = title
-                    if "summary" in news_item:
-                        text_for_sentiment += " " + news_item["summary"]
+                    # text_for_sentiment = title
+                    # if "summary" in news_item:
+                    #     text_for_sentiment += " " + news_item["summary"]
                         
-                    analysis = TextBlob(text_for_sentiment)
-                    news_item["score"] = round(analysis.sentiment.polarity, 2)  # -1 to 1
+                    # analysis = TextBlob(text_for_sentiment)
+                    # news_item["score"] = round(analysis.sentiment.polarity, 2)  # -1 to 1
                     
-                    if news_item["score"] > 0.2:
-                        news_item["sentiment"] = "positive"
-                    elif news_item["score"] < -0.2:
-                        news_item["sentiment"] = "negative"
-                    else:
-                        news_item["sentiment"] = "neutral"
+                    # if news_item["score"] > 0.2:
+                    #     news_item["sentiment"] = "positive"
+                    # elif news_item["score"] < -0.2:
+                    #     news_item["sentiment"] = "negative"
+                    # else:
+                    #     news_item["sentiment"] = "neutral"
                     
                     # pair_news.append(news_item)
                     
                     # Analyze sentiment using FinBERT
-                    # text_for_sentiment = title
-                    # if "summary" in news_item:
-                    #     text_for_sentiment += " " + news_item["summary"]
+                    text_for_sentiment = title
+                    if "summary" in news_item:
+                        text_for_sentiment += " " + news_item["summary"]
 
-                    # # Get the sentiment label
-                    # sentiment_label = analyze_sentiment_finbert(text_for_sentiment)
+                    # Get the sentiment label
+                    sentiment_label = analyze_sentiment_finbert(text_for_sentiment)
+                    print("Sentiment")
+                    print(sentiment_label)
 
                     # Map the sentiment label to a score
                     sentiment_mapping = {
@@ -259,8 +265,8 @@ def scrape_yahoo_finance_news(currency_pairs, max_articles=5, debug_log=None):
                     }
 
                     # Finbert approach
-                    # news_item["score"] = sentiment_mapping[sentiment_label]
-                    # news_item["sentiment"] = sentiment_label
+                    news_item["score"] = sentiment_mapping[sentiment_label]
+                    news_item["sentiment"] = sentiment_label
 
                     pair_news.append(news_item)
 
