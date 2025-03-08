@@ -85,6 +85,15 @@ This app searches for the latest Foreign Exchange (FX) news and generates concis
 using the DistilBART CNN model locally. Select currency pairs of interest and customize your search parameters.
 """)
 
+def hex_to_rgb(hex_color):
+    # Remove the # if present
+    hex_color = hex_color.lstrip('#')
+    # Convert hex to decimal
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    return r, g, b
+
 def check_news_file_structure(base_dir="fx_news/scrapers/news", show_report=True):
     """
     Check if the news file structure is correct and provide a report.
@@ -1091,13 +1100,13 @@ with tab1:
                 """, unsafe_allow_html=True)
                 
                 # Apply a subtle background tint based on sentiment
-                bg_color = f"rgba({sentiment_color[1:3]}, {sentiment_color[3:5]}, {sentiment_color[5:7]}, 0.05)"
+                r, g, b = hex_to_rgb(sentiment_color)
+                bg_color = f"rgba({r}, {g}, {b}, 0.05)"
                 st.markdown(f"""
                 <div style="padding: 10px; border-radius: 5px; background-color: {bg_color};">
                     {content}
                 </div>
                 """, unsafe_allow_html=True)
-                
                 # Add metadata
                 st.caption(f"Based on {summary['source_count']} articles from {summary['date_range']}")
                 
