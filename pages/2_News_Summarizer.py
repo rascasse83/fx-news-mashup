@@ -1,3 +1,24 @@
+# Add this at the very top of your script, before any other imports
+import sys
+
+# Fix for PyTorch with Streamlit
+# This prevents Streamlit's file watcher from trying to inspect PyTorch modules
+class PathFinder:
+    def __init__(self, path):
+        self._path = path
+    
+    def __iter__(self):
+        return iter(self._path)
+
+# Apply the fix to torch._C module if needed
+try:
+    import torch
+    if not hasattr(torch._C, "__path__"):
+        torch._C.__path__ = PathFinder([])
+except (ImportError, AttributeError):
+    pass
+
+
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
