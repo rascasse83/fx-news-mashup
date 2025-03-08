@@ -11,4 +11,3 @@ arrow
 numpy
 transformers
 torch
-os
