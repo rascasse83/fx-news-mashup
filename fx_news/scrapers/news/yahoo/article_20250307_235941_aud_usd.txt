@@ -1,0 +1,45 @@
+# Yahoo Finance
+
+Source: https://finance.yahoo.com/news/u-dollar-continue-rise-octa-102412744.html
+
+In just three and a half months, the Dollar Index (DXY), which measures the value of the greenback relative to a basket of six major foreign currencies, including the euro, Japanese yen, British pound, Canadian dollar, Swedish krona, and Swiss franc, was up more than 10% (from 27 September low to 13 January high). On 13 January, it breached the critical 110.00 level and although it has since declined slightly, it remains by far the best-performing currency among other major currencies this year so far.
+
+‘The reasons for such an impressive rally are plentiful and diverse, but generally it all boils down to the widening interest rate differentials between the United States and other major economies’, says Kar Yong Ang, a financial market analyst at Octa Broker. Indeed, the Federal Reserve (Fed), the U.S. central bank, currently maintains its benchmark interest rate in the range of 4.25-4.50%, which is the second highest level among eight industrialized economies.
+
+Most importantly, however, unlike most other central banks, the Fed is not expected to cut the rates aggressively in 2025 as the U.S. economy continues to demonstrate striking resilience, marked by robust labour market data and strong consumer spending. In addition, geopolitical uncertainty and the risk of trade wars have fuelled safe-haven demand for the U.S. dollar. In fact, the election of Donald Trump as the next U.S. president largely served as a catalyst for the recent rally in the U.S. dollar.
+
+‘It was always assumed that Donald Trump’s victory in the presidential race would be bullish for the U.S. dollar as his trade and immigration policies were viewed as inflationary. Therefore, the market started to price in that outcome well in advance and the dollar began its ascent one month before the election’, says Kar Yong Ang, a financial market analyst at Octa Broker.
+
+Specifically, Trump has explicitly threatened to impose trade tariffs on Eurozone[1] and Canada[2], which clearly had a bearish impact on their currencies. For example, the Euro, which has a dominant 58% weight in the DXY, has lost more than 8% against the U.S. dollar since 25 September 2024. The biggest losers, however, have been risk-sensitive currencies such as the Australian dollar (AUD) and the New Zealand dollar (NZD) (see the chart below) both of which devalued by more than 10%.
+
+Major Currencies Performance Since October 2024
+
+To put it simply, the U.S. dollar is rising because of fear that Trump’s policies might spur inflation at best and trigger an all-out trade war at worst. In addition, the U.S. economy is outperforming most of its peers so the Fed is highly likely to ease its monetary policy at a much slower pace compared to other countries. Indeed, a recent Bloomberg survey forecasts a modest 1% growth for the Euro Area this year, slightly better than the 0.8% projected for 2024 but well below the long-term average of 1.4%.
+
+It is no surprise that the market continues to expect three or four 25-basis point rate cuts by the European Central Bank (ECB) in 2025 compared with just one or two by the Fed over the same period. In these circumstances, it is hard to expect EURUSD to rebound substantially from its recent lows. ‘I think there is more than a 50% chance that EURUSD will decline towards parity at some point this year and may even temporarily drop below the 1.0000 mark’, comments Kar Yong Ang, adding that Eurozone faces a number of structural challenges ranging from high energy costs and deindustrialization to geopolitical tensions and fiscal instability.
+
+As for the DXY, its rally has started to show some signs of exhaustion lately. Technically, there is a bearish divergence between the DXY price and the Relative Strength Index (RSI). Furthermore, fundamentally, a lot of bullish factors have been already priced in and bulls lack new impulses for the next move higher. ‘I think the market has overly priced in all the dollar-related positives and the greenback actually looks slightly overvalued at this point. I think betting on its continuing appreciation is risky’, says Kar Yong Ang. Indeed, in some respect, the market has factored in a less likely scenario—i.e., that Donald Trump will impose blanket tariffs and destabilize global trade.
+
+While such a scenario is certainly possible its probability is relatively low. For example, Bloomberg reported that the U.S. could take a measured approach towards tariffs[3]. ‘The market is forward-looking. Just like it started to price in Trump’s victory well before the elections, so it may now begin to price out the underlying bullish expectations and anticipate a downturn in a classical “buy the rumour sell the news” fashion’, concludes Kar Yong Ang, a financial market analyst at Octa Broker.
+
+Octa is an international broker that has been providing online trading services worldwide since 2011.
+
+https://www.politico.eu/article/us-donald-trump-threat-eu-tariffs-unless-buys-american-oil-gas/ ↑
+
+https://www.reuters.com/world/us/trump-promises-25-tariff-products-mexico-canada-2024-11-25/ ↑
+
+https://www.bloomberg.com/news/articles/2025-01-13/trump-team-studies-gradual-tariff-hikes-under-emergency-powers ↑
+
+This article was originally posted on FX Empire
+
+Sportradar Group Bringing in Big Money
+
+Weekly Roundup: American Inflation Rises and China Shows Stronger Numbers
+
+Heavy Interest in Insulet’s Insulin Delivery Device
+
+DICK’s Sporting Goods Delivering Wins for Investors
+
+United Flying High on Big Money Buys
+
+Revenues, Treatment Pipeline Driving Exelixis Higher

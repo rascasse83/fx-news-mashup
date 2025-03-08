@@ -1,0 +1,57 @@
+# Yahoo Finance
+
+Source: https://finance.yahoo.com/news/global-economy-soft-landing-reinforces-191158876.html
+
+Download Scope Group’s June 2024 economic presentation.
+
+Recent growth has been consistent with Scope Ratings’ long-standing assumption of a soft landing for the global economy, even after the fastest rate rise in modern history. Central banks are unlikely to return to the ultra-low interest rates that prevailed before the pandemic, partly because of a resilient and relatively robust economy. Higher rates for longer might be a boon for some credit sectors such as financial institutions but remain a challenge for most other sectors.
+
+We forecast global growth of 3.2% this year and 3.4% next year, similar to the 3.2% in 2023. Our growth estimates are 0.1-0.2pps above our outlook at the end of last year and well above estimated global annual growth potential of about 2.6%. Economic growth has repeatedly defied consensus expectations of recession. The soft landing supports fundamental and transactional credit, anchoring spending and investment and holding unemployment and non-performing loans at low levels.
+
+The euro-area economy has picked up in recent months judging by Q1 GDP growth and purchasing manager surveys, hence our forecast of growth of 1.0% this year and 1.7% in 2025. This takes into account tepid growth in Germany of 0.2% this year, although we believe that will improve to 1.4% next year. France and Italy are growing slightly below potential rates. Spain and several former crisis-hit economies of the euro-area periphery continue to grow at rates above euro-area averages. Outside of the EU, the UK economy will grow by 0.8% this year, up from 0.1% last year.
+
+Growth in Europe remains significantly slower than that in the United States, which is set for a strong 2.7% increase in output in 2024, 0.5pps better than our above-consensus forecast at the end of last year. In emerging economies, China’s output will grow 5.2% this year, now seen being in line with the government’s annual objective of 5%. Growth in Europe will be stronger next year than this year, although the opposite is likely outside of Europe.
+
+Upside risks we identified for the global economy have partially crystallised through better-than-expected growth, notably in China, the world’s largest economy by purchasing power. We foresaw a “balanced” risk skew for the global and European economies this year in our 2024 outlook. But macroeconomic risks linger. More stubborn-than-expected inflation might keep rates at current levels for longer than even our hawkish assumptions and/or even result in further tightening of monetary policy under an adverse scenario.
+
+The economic consequences of geopolitical tensions might worsen unpredictably. Financial instability could re-emerge given higher-for-longer rates. Finally, investors might further re-appraise sovereign risks amid growing policy uncertainties and fiscal challenges.
+
+Budget-sustainability concerns in France (rated by Scope AA and Negative Outlook) could, as an example, destabilise euro-area markets if the incoming parliament after snap elections called for the coming weeks does not address them. Eurosystem policy makers might have limited capacity to address sustained market volatility if inflation remains above target and some countries such as France are in breach of EU fiscal rules.
+
+Regarding financial-stability risk, commercial real estate risks are very material although at this stage not seen as representing a near-term systemic concern.
+
+The jury is still out on the battle against inflation, which has moderated significantly from its 2022 highs (Figure 1) but is still above 2% central-bank objectives. Two years of above-target inflation underscore how embedded inflationary expectations have become. Inflation will average slightly above 2% this year and even next year in many core economies.
+
+Figure 1. Inflation set to remain stubbornly above target except in China (2020 to 2025F)
+
+%, year-on-year
+
+Rates of core and services-sector inflation remain high. Wage growth also remains elevated, although it is easing, while unemployment is at or near record lows. Given central-bank plans for near-term rate cuts, the strong or strengthening economy represents a problem, with a risk of rate reversals if inflation re-accelerates. The structural inflationary impetus of de-globalisation and geopolitical tensions might strengthen if a new US administration after November elections were to impose higher trade tariffs next year.
+
+The prospect of higher rates for longer has been our long-standing view, consistent with rate reductions (Figure 2) starting later and being ultimately less significant than markets have priced in.
+
+An expectation that the Federal Reserve keeps rates on hold for longer places added constraints on the Eurosystem because of the risk of euro depreciation. The ECB started hiking after the Federal Reserve and did not increase by as much, before reducing rates this month for the first time in five years ahead of its US counterpart. So, the ECB is likely to exercise caution in further rate cuts as many other central banks will, such as Canada, Sweden and Switzerland, which have also lowered rates.
+
+Our baseline is higher steady-state rates than before the cost-of-living crisis, which will be especially risky for highly leveraged borrowers that will need to adjust to a prospect of a prolonged period of tighter monetary policy.
+
+Figure 2. Higher for longer: Scope forecasts on official interest rates
+
+%
+
+For a look at all of today’s economic events, check out our economic calendar.
+
+Dennis Shen is Chair of the Macroeconomic Council at Scope Ratings GmbH. The rating agency’s Macroeconomic Council brings together the company’s credit opinions from multiple issuer classes: sovereign and public sector, financial institutions, corporates, structured finance and project finance.
+
+This article was originally posted on FX Empire
+
+French Auto Parts: Is the Glass Half Full or Half Empty for Valeo, Forvia, and Plastic Omnium?
+
+AUD/USD Forecast – Australian Dollar Continues to Frustrate
+
+AUD/USD Forecast – Australian Dollar Continues to See Chop
+
+Lam Research Helping Drive AI Growth
+
+USD/JPY Forecast – US Dollar Continues to Look Strong Against Japanese Currency
+
+USD/JPY Weekly Price Forecast – US Dollar Continues to See Upward Pressure Against The Yen
