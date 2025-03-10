@@ -1,5 +1,0 @@
-# Yahoo Finance
-
-Source: https://finance.yahoo.com/m/3f083977-3892-39da-94b4-f8416375322c/xrp-price-falls-why-trump%E2%80%99s.html
-
-XRP and other cryptocurrencies fell early Friday as President Donald Trump’s plan for a digital asset stockpile failed to provide the boost the market had anticipated. The president signed an executive order to establish a digital asset stockpile and previously said XRP Solana and Cardano would be among the coins included. XRP, which is used to facilitate transactions on Ripple Labs’ digital-payments platform, fell to $2.53–more than 2% down over the past 24 hours, according to CoinDesk data.

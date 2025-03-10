@@ -19,7 +19,7 @@ from fx_news.scrapers.economic_calendar_scraper import scrape_investing_economic
 from fx_news.scrapers.coinmarketcap_scraper import fetch_crypto_events
 from streamlit_autorefresh import st_autorefresh
 import plotly.graph_objects as go
-import arrow
+# import arrow
 
 # Configure page
 st.set_page_config(
@@ -134,6 +134,9 @@ for key, default_value in {
     if key not in st.session_state:
         st.session_state[key] = default_value
 
+if 'next_news_refresh_time' not in st.session_state:
+    st.session_state.next_news_refresh_time = datetime.now() + timedelta(seconds=300)  # 5 minutes from now
+
 # Update the currency mappings based on market type
 # This section should come after the session state initialization
 if st.session_state.market_type == 'FX':
@@ -151,20 +154,16 @@ if 'crypto_events' not in st.session_state:
 
 if 'crypto_events_last_fetch' not in st.session_state:
     st.session_state.crypto_events_last_fetch = None
-    
-
 
 # Fetch API key from environment variables
 API_KEY = os.getenv("CURRENCY_API_KEY")
-
 
 def setup_auto_refresh():
     """Setup auto-refresh mechanism using streamlit_autorefresh package"""
     # Only enable auto-refresh if the toggle is on in session state
     if 'auto_refresh' in st.session_state and st.session_state.auto_refresh:
         # Set up the 15-second refresh cycle for rates
-        # This returns a counter that increases each time your app reruns
-        count = st_autorefresh(interval=15000, key="rates_refresher")
+        count = st_autorefresh(interval=30000, key="rates_refresher")
         
         # Process refreshes
         current_time = datetime.now()
@@ -173,13 +172,17 @@ def setup_auto_refresh():
         st.session_state.last_auto_refresh_time = current_time
         update_rates()
         
-        # Handle news refresh (every 10th refresh cycle - 150 seconds = 2.5 minutes)
+        # Check if it's time to refresh news (every 20th cycle)
         if count % 20 == 0:
-            st.session_state.last_news_auto_refresh_time = current_time
-            fetch_news(use_mock_fallback=True)
+            # Instead of refreshing right away, just schedule the next refresh
+            current_time = datetime.now()
+            st.session_state.next_news_refresh_time = current_time  # Set to current time to trigger refresh on next run
+            add_notification("Scheduled news refresh", "info")
+        else:
+            # Mark that we're not auto-refreshing news this cycle
+            st.session_state.news_auto_refreshing = False
             
         # Handle economic calendar refresh (every 240th refresh cycle - 1 hour)
-        # This ensures calendar data is refreshed periodically without manual intervention
         if count % 240 == 0:
             st.session_state.last_calendar_auto_refresh_time = current_time
             fetch_all_economic_events(force=True)
@@ -599,8 +602,19 @@ if 'economic_events_last_fetch' not in st.session_state:
 
 
 # Add the fetch_news function to your main app since it depends on st.session_state
-def fetch_news(currencies=None, use_mock_fallback=True):
+def fetch_news(currencies=None, use_mock_fallback=True, force=False):
     """Fetch news for currency pairs, with fallback to mock data if needed."""
+    # Check if we need to refresh at all
+    if not force and 'last_news_fetch' in st.session_state and st.session_state.last_news_fetch:
+        # Don't refresh if it's been less than 60 seconds since last refresh
+        # This prevents excessive API calls even with manual refreshes
+        seconds_since_refresh = (datetime.now() - st.session_state.last_news_fetch).total_seconds()
+        if seconds_since_refresh < 60:
+            if 'show_debug' in st.session_state and st.session_state.show_debug:
+                st.info(f"Skipping news refresh (last refresh {seconds_since_refresh:.0f}s ago)")
+            if 'cached_news' in st.session_state:
+                return st.session_state.cached_news
+            
     if 'subscriptions' not in st.session_state:
         return []
 
@@ -1621,7 +1635,7 @@ with st.sidebar:
     st.button("🔄📰 Refresh Both", on_click=manual_refresh_rates_and_news)
 
     # Then in your sidebar, for the auto-refresh toggle:
-    auto_refresh = st.sidebar.checkbox("Auto-refresh (Rates: 30s, News: 5min)", value=st.session_state.auto_refresh)
+    auto_refresh = st.sidebar.checkbox("Auto-refresh (Rates: 15s, News: 5min)", value=st.session_state.auto_refresh)
     if auto_refresh != st.session_state.auto_refresh:
         st.session_state.auto_refresh = auto_refresh
         # This will force the page to reload with the new auto_refresh setting
@@ -2020,21 +2034,36 @@ with col5:
     subscription_currencies = list(set([sub["base"] for sub in st.session_state.subscriptions] +
                                    [sub["quote"] for sub in st.session_state.subscriptions]))
 
-    # Check if we need to refresh news
     should_refresh_news = False
+
+    current_time = datetime.now()
+    # Only refresh news if:
+    # 1. We don't have any cached news yet
+    # 2. We're past the scheduled next refresh time
     if 'last_news_fetch' not in st.session_state or st.session_state.last_news_fetch is None:
         should_refresh_news = True
+        reason = "Initial fetch"
+        # Set the next refresh time
+        st.session_state.next_news_refresh_time = current_time + timedelta(seconds=300)
     elif 'cached_news' not in st.session_state or not st.session_state.cached_news:
         should_refresh_news = True
-    elif (datetime.now() - st.session_state.last_news_fetch).total_seconds() > 900:  # 15 minutes
+        reason = "No cached news"
+        # Set the next refresh time
+        st.session_state.next_news_refresh_time = current_time + timedelta(seconds=300)
+    elif current_time >= st.session_state.next_news_refresh_time:
         should_refresh_news = True
+        reason = "Scheduled 5-minute refresh"
+        # Schedule the next refresh
+        st.session_state.next_news_refresh_time = current_time + timedelta(seconds=300)
         
     # Fetch news if needed
     if should_refresh_news:
+        # Add notification to make refresh visible
+        add_notification(f"Refreshing news: {reason}", "info")
         news_items = fetch_news(subscription_currencies)
     else:
         news_items = st.session_state.cached_news
-
+        
     # Apply sentiment filter
     if sentiment_filter != "All News":
         if sentiment_filter == "Important Only":
