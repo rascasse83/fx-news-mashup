@@ -9,10 +9,11 @@ import plotly.express as px
 from textblob import TextBlob
 import json
 import re
+import glob
 from bs4 import BeautifulSoup
 import os
 import random
-from fx_news.scrapers.news_scraper import scrape_yahoo_finance_news, create_mock_news
+from fx_news.scrapers.news_scraper import scrape_yahoo_finance_news, create_mock_news, analyze_news_sentiment
 from fx_news.apis.rates_fetch import fetch_currency_rates, update_rates_with_variation, get_mock_currency_rates
 from fx_news.scrapers.rates_scraper import scrape_yahoo_finance_rates
 from fx_news.scrapers.economic_calendar_scraper import scrape_investing_economic_calendar, create_mock_economic_events, get_economic_events_for_currency
@@ -136,6 +137,10 @@ for key, default_value in {
 
 if 'next_news_refresh_time' not in st.session_state:
     st.session_state.next_news_refresh_time = datetime.now() + timedelta(seconds=300)  # 5 minutes from now
+
+# Set up a session state variable to track if we need to refresh
+if 'refresh_news_clicked' not in st.session_state:
+    st.session_state.refresh_news_clicked = False
 
 # Update the currency mappings based on market type
 # This section should come after the session state initialization
@@ -623,16 +628,29 @@ def fetch_news(currencies=None, use_mock_fallback=True, force=False):
     if not currency_pairs:
         return []
 
-    st.session_state.debug_log = []
+    # Initialize debug log
+    if 'debug_log' not in st.session_state or not isinstance(st.session_state.debug_log, list):
+        st.session_state.debug_log = []
     st.session_state.debug_log.append(f"Attempting to fetch news for {len(currency_pairs)} currency pairs")
 
     try:
         with st.spinner("Fetching latest news from Yahoo Finance..."):
             all_news_items = []
             for base, quote in currency_pairs:
-                news_items = scrape_yahoo_finance_news([(base, quote)], debug_log=st.session_state.debug_log)
+                news_items = scrape_yahoo_finance_news(
+                    [(base, quote)], 
+                    debug_log=st.session_state.debug_log,
+                    analyze_sentiment_now=False  # Set to False for faster scraping
+                )
                 for item in news_items:
                     item["currency_pairs"] = {f"{base}/{quote}"}
+                    
+                    # Ensure all news items have default sentiment values
+                    if 'sentiment' not in item:
+                        item['sentiment'] = 'neutral'
+                    if 'score' not in item:
+                        item['score'] = 0.0
+                        
                     all_news_items.append(item)
 
             if all_news_items:
@@ -651,11 +669,147 @@ def fetch_news(currencies=None, use_mock_fallback=True, force=False):
                 add_notification(f"Successfully fetched {len(deduplicated_news)} unique news items from Yahoo Finance", "success")
                 st.session_state.last_news_fetch = datetime.now()
                 st.session_state.cached_news = deduplicated_news
+                
+                # Always run background sentiment analysis, but optimize for performance
+                if deduplicated_news:
+                    # Use threading to run sentiment analysis in background
+                    import threading
+                    from fx_news.scrapers.news_scraper import analyze_sentiment
+                    
+                    # Create a local logger that doesn't depend on st.session_state
+                    import logging
+                    thread_logger = logging.getLogger("sentiment_thread")
+                    if not thread_logger.handlers:
+                        handler = logging.StreamHandler()
+                        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+                        handler.setFormatter(formatter)
+                        thread_logger.addHandler(handler)
+                        thread_logger.setLevel(logging.INFO)
+                    
+                    # Save necessary variables as local copies for the thread
+                    news_folder = "fx_news/scrapers/news/yahoo"
+                    api_key = '1i1PR8oSJwazWAyOj3iXiRoiCThZI6qj'
+                    
+                    def background_sentiment_task():
+                        try:
+                            # Find items without sentiment or with default neutral/0.0 values
+                            items_needing_sentiment = [
+                                item for item in deduplicated_news 
+                                if 'sentiment' not in item or not item['sentiment'] or 
+                                (item.get('sentiment') == 'neutral' and item.get('score', 0) == 0.0)
+                            ]
+                            
+                            # Limit to processing just a few items at a time for better performance
+                            max_items_per_batch = 3  # Reduced to 2 for better performance
+                            items_to_process = items_needing_sentiment[:max_items_per_batch]
+                            
+                            if items_to_process:
+                                thread_logger.info(f"Starting background sentiment analysis for {len(items_to_process)}/{len(items_needing_sentiment)} articles")
+                                
+                                # Process each item and update both the item and file
+                                for i, item in enumerate(items_to_process):
+                                    try:
+                                        # Find the file path
+                                        file_path = None
+                                        
+                                        # Try to get file_path from item if it exists
+                                        if 'file_path' in item and item['file_path'] and os.path.exists(item['file_path']):
+                                            file_path = item['file_path']
+                                        # Otherwise try to find it based on timestamp and currency
+                                        elif 'unix_timestamp' in item and 'currency' in item:
+                                            timestamp = item['unix_timestamp']
+                                            currency = item['currency'].replace('/', '_').lower()
+                                            potential_path = os.path.join(news_folder, f"article_{timestamp}_{currency}.txt")
+                                            
+                                            if os.path.exists(potential_path):
+                                                file_path = potential_path
+                                                thread_logger.info(f"Found file path based on timestamp and currency: {file_path}")
+                                            else:
+                                                # Try pattern matching
+                                                pattern = os.path.join(news_folder, f"article_{timestamp}_*.txt")
+                                                matching_files = glob.glob(pattern)
+                                                if matching_files:
+                                                    file_path = matching_files[0]
+                                                    thread_logger.info(f"Found file path based on timestamp pattern: {file_path}")
+                                        
+                                        if not file_path:
+                                            thread_logger.warning(f"Could not find file for article: {item.get('title', 'Unknown')}")
+                                            continue
+                                        
+                                        # Read file content
+                                        with open(file_path, 'r', encoding='utf-8') as f:
+                                            content = f.read()
+                                        
+                                        # Extract title and summary
+                                        title_match = re.search(r'^# (.+)$', content, re.MULTILINE)
+                                        title = title_match.group(1).strip() if title_match else item.get('title', '')
+                                        
+                                        summary_match = re.search(r'SUMMARY:\s(.*?)(?:\n\n|\Z)', content, re.DOTALL)
+                                        summary = summary_match.group(1).strip() if summary_match else ''
+                                        
+                                        # Analyze sentiment
+                                        text_for_sentiment = f"{title} {summary}"
+                                        thread_logger.info(f"Analyzing sentiment for {title}")
+                                        sentiment_label, sentiment_score = analyze_sentiment(
+                                            text_for_sentiment, 
+                                            mode='ensemble', 
+                                            api_key=api_key
+                                        )
+                                        thread_logger.info(f"Sentiment result: {sentiment_label} ({sentiment_score})")
+                                        
+                                        # Update item in memory
+                                        item['sentiment'] = sentiment_label
+                                        item['score'] = sentiment_score
+                                        
+                                        # Check if file already has sentiment markers
+                                        has_sentiment_markers = '---\nSENTIMENT:' in content
+                                        
+                                        # Update the file
+                                        if has_sentiment_markers:
+                                            # Replace existing markers
+                                            new_content = re.sub(
+                                                r'---\nSENTIMENT:.*?\nSCORE:.*?(?=\n\n|\Z)', 
+                                                f"---\nSENTIMENT: {sentiment_label}\nSCORE: {sentiment_score}", 
+                                                content, 
+                                                flags=re.DOTALL
+                                            )
+                                            with open(file_path, 'w', encoding='utf-8') as f:
+                                                f.write(new_content)
+                                            thread_logger.info(f"Updated existing sentiment markers in {os.path.basename(file_path)}")
+                                        else:
+                                            # Append new markers
+                                            with open(file_path, 'a', encoding='utf-8') as f:
+                                                f.write(f"\n\n---\nSENTIMENT: {sentiment_label}\nSCORE: {sentiment_score}\n")
+                                            thread_logger.info(f"Added new sentiment markers to {os.path.basename(file_path)}")
+                                        
+                                        # Add longer delay between API requests to reduce load
+                                        if i < len(items_to_process) - 1:
+                                            time.sleep(1.5)  # 1.5 second delay
+                                            
+                                    except Exception as e:
+                                        thread_logger.error(f"Error updating sentiment for article: {str(e)}")
+                                
+                            else:
+                                thread_logger.info("No articles need sentiment analysis")
+                                
+                        except Exception as e:
+                            # Log any errors from the thread
+                            thread_logger.error(f"Error in background sentiment task: {str(e)}")
+                    
+                    # Start the background thread with a longer delay
+                    sentiment_thread = threading.Thread(target=background_sentiment_task)
+                    sentiment_thread.daemon = True  # Allow app to exit even if thread is running
+                    # Add a longer delay before starting the thread to let main UI render completely
+                    time.sleep(1.0)  # Increased delay
+                    sentiment_thread.start()
+                
                 return deduplicated_news
             else:
-                st.session_state.debug_log.append("No news items found from Yahoo Finance")
+                if isinstance(st.session_state.debug_log, list):
+                    st.session_state.debug_log.append("No news items found from Yahoo Finance")
     except Exception as e:
-        st.session_state.debug_log.append(f"Error fetching news from Yahoo Finance: {str(e)}")
+        if isinstance(st.session_state.debug_log, list):
+            st.session_state.debug_log.append(f"Error fetching news from Yahoo Finance: {str(e)}")
         add_notification(f"Error fetching news from Yahoo Finance: {str(e)}", "error")
 
     if use_mock_fallback:
@@ -1206,6 +1360,11 @@ def prepare_map_data(variations, currency_to_country):
     
     return map_data
 
+
+# The callback just sets a flag
+def refresh_news_callback():
+    st.session_state.refresh_news_clicked = True
+
 # Call this function right after your session state initialization
 setup_auto_refresh()
 
@@ -1631,8 +1790,13 @@ with st.sidebar:
 
     # Manual refresh button
     st.button("🔄 Refresh Rates", on_click=update_rates)
-    st.button("📰 Refresh News", on_click=lambda: fetch_news(use_mock_fallback=True))
+    st.button("📰 Refresh News", on_click=refresh_news_callback)
     st.button("🔄📰 Refresh Both", on_click=manual_refresh_rates_and_news)
+
+    st.sidebar.checkbox("Run background sentiment analysis", 
+                    key="run_background_sentiment",
+                    value=True,
+                    help="Enable to analyze sentiment in the background (may slow down the app)")
 
     # Then in your sidebar, for the auto-refresh toggle:
     auto_refresh = st.sidebar.checkbox("Auto-refresh (Rates: 15s, News: 5min)", value=st.session_state.auto_refresh)
@@ -1648,6 +1812,22 @@ with st.sidebar:
         
         if 'last_news_auto_refresh_time' in st.session_state and st.session_state.last_news_auto_refresh_time:
             st.sidebar.caption(f"Last news refresh: {st.session_state.last_news_auto_refresh_time.strftime('%H:%M:%S')}")
+
+
+    # Check the flag elsewhere in your code
+    if st.session_state.refresh_news_clicked:
+        # Do the refresh
+        news_items = fetch_news(use_mock_fallback=True, force=True)
+        # Reset the flag
+        st.session_state.refresh_news_clicked = False
+    else:
+        # Normal fetch
+        news_items = fetch_news(use_mock_fallback=True)
+
+
+    # run_sentiment_analysis = st.sidebar.checkbox("Analyze sentiment", value=False, 
+    #                                             help="Run sentiment analysis on new articles (slower)")
+    # st.session_state.run_sentiment_analysis = run_sentiment_analysis    
 
     # Show notification history
     st.header("Notifications")
@@ -2087,11 +2267,11 @@ with col5:
                 time_str = f"{time_diff.seconds // 300}m ago"
 
             # Create color based on sentiment
-            if item['sentiment'] == 'positive':
+            if 'sentiment' in item and item['sentiment'] == 'positive':
                 border_color = "green"
                 bg_color = "#d4edda"
                 text_color = "#28a745"
-            elif item['sentiment'] == 'negative':
+            elif 'sentiment' in item and item['sentiment'] == 'negative':
                 border_color = "red"
                 bg_color = "#f8d7da"
                 text_color = "#dc3545"
@@ -2126,7 +2306,7 @@ with col5:
                         <div>
                             <span style="color:#6c757d; font-size:0.8em; margin-right:5px;">{time_str}</span>
                             <span style="background-color:{bg_color}; color:{text_color}; padding:2px 6px; border-radius:10px; font-size:0.8em;">
-                                {item['sentiment']} ({'+' if item['score'] > 0 else ''}{item['score']})
+                                {item.get('sentiment', 'neutral')} ({'+' if item.get('score', 0) > 0 else ''}{item.get('score', 0)})
                             </span>
                         </div>
                     </div>

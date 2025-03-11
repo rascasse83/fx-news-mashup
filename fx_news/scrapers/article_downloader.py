@@ -12,6 +12,73 @@ import glob
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+SESSION_PROCESSED_URLS = set()
+SESSION_PROCESSED_TIMESTAMPS = {}
+
+def debug_article_processing(url, symbol, folder):
+    """Debug function to diagnose why duplicate detection is failing"""
+    try:
+        # Get latest timestamp from cache
+        latest_timestamp = get_latest_timestamp(folder, symbol)
+        
+        # Extract timestamp from URL
+        url_timestamp_match = re.search(r'[/-](\d{10})(?:[/-]|\.|\?|$)', url)
+        url_timestamp = int(url_timestamp_match.group(1)) if url_timestamp_match else 0
+        
+        # Check session timestamps
+        symbol_lower = symbol.lower()
+        in_session = symbol_lower in SESSION_PROCESSED_TIMESTAMPS
+        session_timestamps = SESSION_PROCESSED_TIMESTAMPS.get(symbol_lower, set())
+        
+        # Check for existing files with this timestamp
+        exact_file = None
+        if url_timestamp > 0:
+            exact_file = os.path.join(folder, f"article_{url_timestamp}_{symbol_lower}.txt")
+            file_exists = os.path.exists(exact_file)
+        else:
+            file_exists = False
+            
+        # Log all diagnostic information
+        logger.info("==== ARTICLE DUPLICATE DETECTION DIAGNOSIS ====")
+        logger.info(f"URL: {url}")
+        logger.info(f"Symbol: {symbol}")
+        logger.info(f"Latest timestamp in cache: {latest_timestamp}")
+        logger.info(f"URL timestamp: {url_timestamp}")
+        logger.info(f"Symbol in SESSION_PROCESSED_TIMESTAMPS: {in_session}")
+        logger.info(f"Timestamps in session for this symbol: {session_timestamps}")
+        logger.info(f"Looking for exact file: {exact_file}")
+        logger.info(f"Exact file exists: {file_exists}")
+        
+        # Check timestamp cache file directly
+        cache_dir = os.path.join(folder, "timestamp_cache")
+        cache_file = os.path.join(cache_dir, f"{symbol_lower}_latest.txt")
+        if os.path.exists(cache_file):
+            with open(cache_file, 'r') as f:
+                cached_content = f.read().strip()
+                logger.info(f"Timestamp cache file content: {cached_content}")
+        else:
+            logger.info("Timestamp cache file does not exist")
+            
+        logger.info("=================================================")
+        
+    except Exception as e:
+        logger.error(f"Error in debug function: {str(e)}")
+
+def is_timestamp_processed(symbol: str, timestamp: int) -> bool:
+    """Check if a timestamp has been processed for a symbol in this session"""
+    symbol = symbol.lower()
+    return symbol in SESSION_PROCESSED_TIMESTAMPS and timestamp in SESSION_PROCESSED_TIMESTAMPS[symbol]
+
+def mark_timestamp_processed(symbol: str, timestamp: int) -> None:
+    """Mark a timestamp as processed for a symbol in this session"""
+    symbol = symbol.lower()
+    if symbol not in SESSION_PROCESSED_TIMESTAMPS:
+        SESSION_PROCESSED_TIMESTAMPS[symbol] = set()
+    SESSION_PROCESSED_TIMESTAMPS[symbol].add(timestamp)
+    
+    # Also update the timestamp cache file
+    update_timestamp_cache(symbol, timestamp, "fx_news/scrapers/news/yahoo")
+
 def extract_unix_timestamp(soup):
     """
     Extract the unix timestamp from the article's HTML
@@ -347,9 +414,6 @@ def download_article_content(url, headers=None):
         return None
 
 def save_article_to_file(symbol, article_data, folder="fx_news/scrapers/news/yahoo"):
-    """
-    Save article content to a file in the specified folder with a unique filename that includes the timestamp
-    """
     try:
         os.makedirs(folder, exist_ok=True)
 
@@ -369,11 +433,30 @@ def save_article_to_file(symbol, article_data, folder="fx_news/scrapers/news/yah
         # Clean up the title for writing to file
         title = title.replace('\n', ' ').replace('\r', '').strip()
 
+        # Extract a summary from the article content (first 2-3 paragraphs)
+        content = article_data['content']
+        paragraphs = content.split('\n\n')
+        
+        # Use the first 2-3 paragraphs as the summary, but limit to reasonable length
+        summary_paragraphs = paragraphs[:min(3, len(paragraphs))]
+        summary = ' '.join(summary_paragraphs).strip()
+        # Limit summary length
+        summary = summary[:500] + ('...' if len(summary) > 500 else '')
+
+        # Get sentiment information if available
+        sentiment_label = article_data.get("sentiment", "")
+        sentiment_score = article_data.get("score", 0.0)
+
         with open(filepath, 'w', encoding='utf-8') as file:
             file.write(f"# {title}\n\n")
             file.write(f"Source: {article_data['url']}\n")
             file.write(f"Timestamp: {unix_timestamp} ({datetime.fromtimestamp(unix_timestamp).isoformat()})\n\n")
-            file.write(article_data['content'])
+            file.write(f"SUMMARY: {summary}\n\n")  # Clearly labeled summary
+            file.write(content)  # Full content follows
+            
+            # Add sentiment information at the end of the file
+            file.write(f"\n\n---\nSENTIMENT: {sentiment_label}\n")
+            file.write(f"SCORE: {sentiment_score}\n")
 
         # Update the timestamp cache with this new article's timestamp
         update_timestamp_cache(symbol, unix_timestamp, folder)
@@ -390,6 +473,37 @@ def is_duplicate_article(title, url, symbol, folder):
     Check if an article is already downloaded by checking for similar titles, URLs, or timestamp
     """
     try:
+        # Get the latest timestamp from cache
+        latest_timestamp = get_latest_timestamp(folder, symbol)
+        logger.info(f"Checking for duplicate against latest timestamp: {latest_timestamp}")
+        
+        # First, extract any timestamp from the article (either from URL or content)
+        article_timestamp = 0
+        
+        # Check URL for timestamp
+        url_timestamp_match = re.search(r'[/-](\d{10})(?:[/-]|\.|\?|$)', url)
+        if url_timestamp_match:
+            article_timestamp = int(url_timestamp_match.group(1))
+            logger.info(f"Found timestamp in URL: {article_timestamp}")
+            
+            # DIRECT COMPARE TO CACHED TIMESTAMP - Check for exact match
+            if latest_timestamp > 0 and article_timestamp == latest_timestamp:
+                logger.info(f"DUPLICATE FOUND: Article timestamp {article_timestamp} EXACTLY MATCHES latest known timestamp {latest_timestamp}")
+                return True, None
+            
+            # Also check for older timestamps as before
+            if latest_timestamp > 0 and article_timestamp < latest_timestamp:
+                logger.info(f"Article timestamp {article_timestamp} is older than latest known timestamp {latest_timestamp}")
+                return True, None
+        
+        # Now check for exact file match with timestamp from URL
+        symbol_lower = symbol.lower()
+        if article_timestamp > 0:
+            exact_file = os.path.join(folder, f"article_{article_timestamp}_{symbol_lower}.txt")
+            if os.path.exists(exact_file):
+                logger.info(f"DUPLICATE FOUND: Exact file match found: {exact_file}")
+                return True, exact_file
+        
         # Clean the title for comparison
         clean_title = re.sub(r'[^\w\s]', '', title.lower())
         clean_title = re.sub(r'\s+', '_', clean_title).strip('_')
@@ -415,28 +529,83 @@ def is_duplicate_article(title, url, symbol, folder):
             logger.info(f"Found duplicate article by title: {title}")
             return True, title_files[0]
         
-        # Check for articles with same timestamp (for articles_TIMESTAMP pattern)
-        # This is useful when the same article is published multiple times with slight title changes
-        article_match = re.search(r'/(\d{10})(?:\.|$)', url)
-        if article_match:
-            timestamp = article_match.group(1)
-            timestamp_pattern = os.path.join(folder, f"article_{timestamp}*_{symbol}*.txt")
+        # Check for articles with the same timestamp (regardless of specific format)
+        if article_timestamp > 0:
+            timestamp_pattern = os.path.join(folder, f"article_{article_timestamp}*_{symbol}*.txt")
             timestamp_files = glob.glob(timestamp_pattern)
             if timestamp_files:
-                logger.info(f"Found duplicate article by timestamp in URL: {timestamp}")
+                logger.info(f"Found duplicate article by timestamp in URL: {article_timestamp}")
                 return True, timestamp_files[0]
-            
+        
+        # If no duplicates found
         return False, None
         
     except Exception as e:
-        logger.error(f"Error checking for duplicate article: {e}")
-        return False, None
+        logger.error(f"Error checking for duplicate article: {str(e)}")
+        return False, None      
     
 # Changes to download_single_article to handle timestamp updates
-def download_single_article(symbol, url, folder="fx_news/scrapers/news/yahoo"):
+def download_single_article(symbol, url, folder="fx_news/scrapers/news/yahoo", sentiment_info=None):
     """
     Download and save a single article from its URL with enhanced title extraction
+    
+    Args:
+        symbol: Currency pair symbol (e.g., "BTC_USD")
+        url: URL of the article to download
+        folder: Folder to save downloaded articles
+        sentiment_info: Optional dictionary with 'sentiment' and 'score' keys
+    
+    Returns:
+        Path to the saved file or None if download failed
     """
+    # Initialize session tracking from cache if needed
+    symbol_lower = symbol.lower()
+    if 'SESSION_PROCESSED_TIMESTAMPS' in globals():
+        if symbol_lower not in SESSION_PROCESSED_TIMESTAMPS:
+            latest_timestamp = get_latest_timestamp(folder, symbol)
+            if latest_timestamp > 0:
+                SESSION_PROCESSED_TIMESTAMPS[symbol_lower] = {latest_timestamp}
+                logger.info(f"Initialized session tracking for {symbol} with timestamp {latest_timestamp}")
+    
+    # Extract timestamp from URL
+    article_timestamp = 0
+    url_timestamp_match = re.search(r'[/-](\d{10})(?:[/-]|\.|\?|$)', url)
+    if url_timestamp_match:
+        article_timestamp = int(url_timestamp_match.group(1))
+        
+        # Check for files with the same timestamp base (regardless of counter)
+        if article_timestamp > 0:
+            symbol_lower = symbol.lower()
+            base_pattern = os.path.join(folder, f"article_{article_timestamp}_{symbol_lower}*.txt")
+            matching_files = glob.glob(base_pattern)
+            
+            if matching_files:
+                logger.info(f"Skipping download: Found {len(matching_files)} existing files with timestamp {article_timestamp}")
+                return matching_files[0]  # Return the first matching file
+        
+        # Also check against the latest timestamp in the cache
+        latest_timestamp = get_latest_timestamp(folder, symbol)
+        if latest_timestamp > 0:
+            if article_timestamp == latest_timestamp:
+                logger.info(f"Skipping download: URL timestamp {article_timestamp} exactly matches latest cached timestamp {latest_timestamp}")
+                # Try to find an exact file
+                exact_file = os.path.join(folder, f"article_{latest_timestamp}_{symbol_lower}.txt")
+                if os.path.exists(exact_file):
+                    return exact_file
+                
+                # If not found, try the pattern match again (should be redundant)
+                base_pattern = os.path.join(folder, f"article_{latest_timestamp}_{symbol_lower}*.txt")
+                matching_files = glob.glob(base_pattern)
+                if matching_files:
+                    return matching_files[0]
+                
+                # If still not found, skip the download
+                return None
+            
+            elif article_timestamp < latest_timestamp:
+                logger.info(f"Skipping download: URL timestamp {article_timestamp} is older than latest cached timestamp {latest_timestamp}")
+                return None
+    
     user_agents = [
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -489,7 +658,35 @@ def download_single_article(symbol, url, folder="fx_news/scrapers/news/yahoo"):
     
     if is_duplicate:
         logger.info(f"Skipping duplicate article: {article_data['title']} (already exists at {existing_file})")
-        return existing_file
+        # If we have a file path, return it
+        if existing_file:
+            return existing_file
+        # Otherwise skip
+        return None
+    
+    # Make sure the unix timestamp is set based on the URL if available
+    if url_timestamp_match and 'unix_timestamp' not in article_data:
+        article_data['unix_timestamp'] = int(url_timestamp_match.group(1))
+        logger.info(f"Setting timestamp from URL: {article_data['unix_timestamp']}")
+    
+    # Extra check: If the article's timestamp matches any existing article files, skip it
+    if 'unix_timestamp' in article_data and article_data['unix_timestamp'] > 0:
+        article_ts = article_data['unix_timestamp']
+        base_pattern = os.path.join(folder, f"article_{article_ts}_{symbol_lower}*.txt")
+        matching_files = glob.glob(base_pattern)
+        
+        if matching_files:
+            logger.info(f"Skipping download: Found {len(matching_files)} existing files with same article timestamp {article_ts}")
+            return matching_files[0]
+    
+    # Add sentiment information if provided
+    if sentiment_info and isinstance(sentiment_info, dict):
+        if 'sentiment' in sentiment_info:
+            article_data['sentiment'] = sentiment_info['sentiment']
+            logger.info(f"Adding sentiment to article: {sentiment_info['sentiment']}")
+        if 'score' in sentiment_info:
+            article_data['score'] = sentiment_info['score']
+            logger.info(f"Adding sentiment score to article: {sentiment_info['score']}")
     
     # Not a duplicate, save it
     filepath = save_article_to_file(symbol, article_data, folder)
@@ -497,6 +694,17 @@ def download_single_article(symbol, url, folder="fx_news/scrapers/news/yahoo"):
     # Verify if title was saved properly
     if filepath and (not article_data.get('title') or article_data.get('title') == "Yahoo Finance"):
         logger.warning(f"Article saved with generic title. URL: {url}")
+    
+    # Update session tracking with this timestamp if the global variable exists
+    if 'unix_timestamp' in article_data and article_data['unix_timestamp'] > 0:
+        if 'SESSION_PROCESSED_TIMESTAMPS' in globals() and 'mark_timestamp_processed' in globals():
+            try:
+                mark_timestamp_processed(symbol, article_data['unix_timestamp'])
+            except Exception as e:
+                logger.error(f"Error updating session tracking: {str(e)}")
+        else:
+            # Directly update the timestamp cache file
+            update_timestamp_cache(symbol, article_data['unix_timestamp'], folder)
     
     return filepath
 

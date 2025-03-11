@@ -4,6 +4,7 @@ bs4
 streamlit-autorefresh
 textblob
 logging
+logger
 pandas
 streamlit
 typing

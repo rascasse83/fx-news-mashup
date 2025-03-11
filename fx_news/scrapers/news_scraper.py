@@ -7,8 +7,10 @@ from bs4 import BeautifulSoup
 from textblob import TextBlob
 import logging
 import os
-from fx_news.scrapers.article_downloader import download_single_article, get_latest_timestamp
+import glob
+from fx_news.scrapers.article_downloader import download_single_article, get_latest_timestamp, update_timestamp_cache, download_article_content
 from fx_news.scrapers.robots_txt_parser import RobotsTxtParser
+from fx_news.scrapers.analyze_sentiment import analyze_sentiment_with_mistral
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urljoin
 import backoff
@@ -57,18 +59,275 @@ def mark_timestamp_processed(symbol: str, timestamp: int) -> None:
         SESSION_PROCESSED_TIMESTAMPS[symbol] = set()
     SESSION_PROCESSED_TIMESTAMPS[symbol].add(timestamp)
 
-def analyze_sentiment(text: str, mode: str = "textblob") -> Tuple[str, float]:
+    # Also update the timestamp cache file
+    update_timestamp_cache(symbol, timestamp, "fx_news/scrapers/news/yahoo")
+
+
+
+def analyze_news_sentiment(news_items, folder="fx_news/scrapers/news/yahoo", api_key=None, delay_between_requests=1.0):
     """
-    Analyze sentiment using either FinBERT or TextBlob
+    Process sentiment for a list of news items as a background job
+    
+    Args:
+        news_items: List of news items with file_path property
+        folder: Folder containing news articles
+        api_key: Optional Mistral API key
+        delay_between_requests: Delay in seconds between API requests
+    """
+    logger.info(f"Starting sentiment analysis for {len(news_items)} articles")
+    
+    for i, news_item in enumerate(news_items):
+        try:
+            file_path = news_item.get('file_path')
+            if not file_path or not os.path.exists(file_path):
+                # Try to find the file based on timestamp and symbol
+                if 'unix_timestamp' in news_item and 'currency' in news_item:
+                    timestamp = news_item['unix_timestamp']
+                    currency = news_item['currency'].replace('/', '_').lower()
+                    potential_path = os.path.join(folder, f"article_{timestamp}_{currency}.txt")
+                    
+                    if os.path.exists(potential_path):
+                        file_path = potential_path
+                        logger.info(f"Found file path based on timestamp and currency: {file_path}")
+                    else:
+                        # Try with a pattern search
+                        pattern = os.path.join(folder, f"article_{timestamp}_*.txt")
+                        matching_files = glob.glob(pattern)
+                        if matching_files:
+                            file_path = matching_files[0]
+                            logger.info(f"Found file path based on timestamp pattern: {file_path}")
+            
+            if not file_path or not os.path.exists(file_path):
+                logger.warning(f"File not found for sentiment analysis: {file_path}")
+                continue
+                
+            # Read the file content
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Check if the file already has sentiment markers
+            has_sentiment_markers = '---\nSENTIMENT:' in content
+            
+            # Extract title and summary for sentiment analysis
+            title_match = re.search(r'^# (.+)$', content, re.MULTILINE)
+            title = title_match.group(1).strip() if title_match else ""
+            
+            summary_match = re.search(r'SUMMARY:\s(.*?)(?:\n\n|\Z)', content, re.DOTALL)
+            summary = summary_match.group(1).strip() if summary_match else ""
+            
+            # Prepare text for sentiment analysis
+            text_for_sentiment = f"{title} {summary}"
+            
+            # Analyze sentiment
+            logger.info(f"Analyzing sentiment for: {title}")
+            sentiment_label, sentiment_score = analyze_sentiment(text_for_sentiment, mode='ensemble', api_key=api_key)
+            logger.info(f"Sentiment result: {sentiment_label} ({sentiment_score})")
+            
+            # Update news item
+            news_item['sentiment'] = sentiment_label
+            news_item['score'] = sentiment_score
+            
+            # Update the file, replacing existing sentiment markers if they exist
+            if has_sentiment_markers:
+                # Replace existing sentiment markers
+                new_content = re.sub(
+                    r'---\nSENTIMENT:.*?\nSCORE:.*?(?=\n\n|\Z)', 
+                    f"---\nSENTIMENT: {sentiment_label}\nSCORE: {sentiment_score}", 
+                    content, 
+                    flags=re.DOTALL
+                )
+                
+                # Write the updated content
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+                
+                logger.info(f"Updated existing sentiment markers in {os.path.basename(file_path)}")
+            else:
+                # Append new sentiment markers
+                with open(file_path, 'a', encoding='utf-8') as f:
+                    f.write(f"\n\n---\nSENTIMENT: {sentiment_label}\nSCORE: {sentiment_score}\n")
+                
+                logger.info(f"Added new sentiment markers to {os.path.basename(file_path)}")
+            
+            logger.info(f"Sentiment for {os.path.basename(file_path)}: {sentiment_label} ({sentiment_score})")
+            
+            # Add delay between API requests
+            if api_key and i < len(news_items) - 1:
+                logger.debug(f"Sleeping for {delay_between_requests}s between API requests")
+                time.sleep(delay_between_requests)
+                
+        except Exception as e:
+            logger.error(f"Error analyzing sentiment for {news_item.get('title', 'unknown')}: {str(e)}")
+            logger.exception(e)  # This logs the full stack trace
+    
+    logger.info(f"Completed sentiment analysis for {len(news_items)} articles")
+    return news_items
+
+def batch_analyze_sentiment(folder="fx_news/scrapers/news/yahoo", max_days_old=30, api_key=None):
+    """
+    Run a batch job to analyze sentiment for all articles without sentiment
+    
+    Args:
+        folder: Folder containing news articles
+        max_days_old: Maximum age of articles to analyze in days
+        api_key: Mistral API key
+    """
+    import glob
+    
+    # Get all article files
+    pattern = os.path.join(folder, "*.txt")
+    files = glob.glob(pattern)
+    
+    # Calculate cutoff date
+    cutoff_timestamp = int((datetime.now() - timedelta(days=max_days_old)).timestamp())
+    
+    # Filter files to those without sentiment
+    files_without_sentiment = []
+    
+    for file_path in files:
+        try:
+            # Extract timestamp from filename
+            filename = os.path.basename(file_path)
+            timestamp_match = re.search(r'article_(\d{10})_', filename)
+            
+            if not timestamp_match:
+                continue
+                
+            file_timestamp = int(timestamp_match.group(1))
+            
+            # Skip if too old
+            if file_timestamp < cutoff_timestamp:
+                continue
+                
+            # Check if file already has sentiment
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                
+            if 'SENTIMENT:' in content and 'SCORE:' in content:
+                continue
+                
+            # File needs sentiment analysis
+            files_without_sentiment.append(file_path)
+            
+        except Exception as e:
+            logger.error(f"Error checking file {file_path}: {str(e)}")
+    
+    logger.info(f"Found {len(files_without_sentiment)} files without sentiment data")
+    
+    # Process files in batches with rate limiting
+    for i, file_path in enumerate(files_without_sentiment):
+        try:
+            # Read file content
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Extract title and summary
+            title_match = re.search(r'^# (.+)$', content, re.MULTILINE)
+            title = title_match.group(1).strip() if title_match else ""
+            
+            summary_match = re.search(r'SUMMARY:\s(.*?)(?:\n\n|\Z)', content, re.DOTALL)
+            summary = summary_match.group(1).strip() if summary_match else ""
+            
+            # Prepare text for sentiment analysis
+            text_for_sentiment = f"{title} {summary}"
+            
+            # Analyze sentiment
+            sentiment_label, sentiment_score = analyze_sentiment(text_for_sentiment, mode='ensemble', api_key=api_key)
+            
+            # Append sentiment to file
+            with open(file_path, 'a', encoding='utf-8') as f:
+                f.write(f"\n\n---\nSENTIMENT: {sentiment_label}\n")
+                f.write(f"SCORE: {sentiment_score}\n")
+                
+            logger.info(f"Added sentiment to {os.path.basename(file_path)}: {sentiment_label} ({sentiment_score})")
+            
+            # Add delay between API requests
+            if api_key and i < len(files_without_sentiment) - 1:
+                logger.info(f"Sleeping for 1.0s between API requests ({i+1}/{len(files_without_sentiment)})")
+                time.sleep(1.0)
+                
+        except Exception as e:
+            logger.error(f"Error analyzing sentiment for {os.path.basename(file_path)}: {str(e)}")
+    
+    logger.info(f"Completed sentiment analysis for {len(files_without_sentiment)} files")
+
+
+def analyze_sentiment_ensemble(text: str, api_key: str = None) -> tuple[str, float]:
+    """
+    Analyze sentiment using an ensemble of FinBERT and Mistral models
     
     Args:
         text: Text to analyze
-        mode: "finbert" or "textblob"
+        api_key: API key for Mistral
     
     Returns:
         tuple: (sentiment_label, sentiment_score)
     """
-    if mode == "finbert":
+    # Get FinBERT sentiment
+    finbert_label, finbert_score = analyze_sentiment(text, mode="finbert")
+    
+    # Convert finbert score to a -1 to 1 scale for easier combination
+    # FinBERT gives a confidence score between 0 and 1, we need to scale it
+    if finbert_label == "positive":
+        finbert_normalized = finbert_score  # Already 0 to 1
+    elif finbert_label == "negative":
+        finbert_normalized = -finbert_score  # Convert to -1 to 0
+    else:  # neutral
+        finbert_normalized = 0  # Center neutral at 0
+    
+    # Only use Mistral if API key is provided
+    if api_key:
+        try:
+            # Get Mistral sentiment
+            mistral_label, mistral_score = analyze_sentiment(text, mode="mistral", api_key=api_key)
+            
+            # Combine scores (weighted average)
+            # You can adjust the weights based on which model you find more reliable
+            if mistral_score == 0:
+                ensemble_score = finbert_normalized  # Use 100% FinBERT when Mistral is 0
+            else:
+                ensemble_score = (finbert_normalized * 0.2) + (mistral_score * 0.8)
+            
+            # Log both scores for analysis
+            logger.info(f"FinBERT: {finbert_label} ({finbert_normalized:.2f}), " 
+                        f"Mistral: {mistral_label} ({mistral_score:.2f}), "
+                        f"Ensemble: {ensemble_score:.2f}")
+            
+        except Exception as e:
+            # Fixed error handling - use the error message in the logger call
+            error_msg = str(e)
+            logger.error(f"Error using Mistral API, falling back to FinBERT: {error_msg}")
+            ensemble_score = finbert_normalized
+    else:
+        # No API key, just use FinBERT
+        ensemble_score = finbert_normalized
+    
+    # Determine final sentiment label based on ensemble score
+    if ensemble_score > 0.2:
+        final_label = "positive"
+    elif ensemble_score < -0.2:
+        final_label = "negative"
+    else:
+        final_label = "neutral"
+    
+    return final_label, round(ensemble_score, 2)
+
+def analyze_sentiment(text: str, mode: str = "textblob", api_key: str = None) -> Tuple[str, float]:
+    """
+    Analyze sentiment using various methods
+    
+    Args:
+        text: Text to analyze
+        mode: "finbert", "textblob", "mistral", or "ensemble"
+        api_key: API key for Mistral (required for mistral and ensemble modes)
+    
+    Returns:
+        tuple: (sentiment_label, sentiment_score)
+    """
+    if mode == "ensemble":
+        return analyze_sentiment_ensemble(text, api_key)
+    
+    elif mode == "finbert":
         # Load model if needed
         load_finbert_model()
         
@@ -94,6 +353,13 @@ def analyze_sentiment(text: str, mode: str = "textblob") -> Tuple[str, float]:
         }[predicted_class]
 
         return sentiment_label, round(score, 2)
+    
+    elif mode == "mistral":
+        if not api_key:
+            logger.warning("No API key provided for Mistral, falling back to TextBlob")
+            return analyze_sentiment(text, "textblob")
+        
+        return analyze_sentiment_with_mistral(text, api_key)
     
     # Analyze sentiment using TextBlob
     else:            
@@ -151,7 +417,7 @@ def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo
     loaded_news = []
     
     # Get files for this symbol
-    pattern = os.path.join(folder, f"article_*_{symbol}.txt")
+    pattern = os.path.join(folder, f"*_{symbol}.txt")
     files = glob.glob(pattern)
     
     # Sort by timestamp (newest first)
@@ -214,19 +480,26 @@ def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo
             # Convert timestamp to datetime
             timestamp = datetime.fromtimestamp(file_timestamp)
             
-            # Extract content as summary (first paragraph after metadata)
+            # Extract summary from content (look for SUMMARY label first)
             summary = ""
-            content_parts = content.split('\n\n')
+            summary_match = re.search(r'SUMMARY:\s(.*?)(?:\n\n|\Z)', content, re.DOTALL)
+            if summary_match:
+                summary = summary_match.group(1).strip()
+            else:
+                # Fall back to using content after metadata sections
+                content_parts = content.split('\n\n')
+                # Skip title and metadata sections (usually first 3-4 parts)
+                for part in content_parts[3:6]:
+                    if part and len(part.strip()) > 10:  # Skip empty or very short parts
+                        summary += part.strip() + " "
             
-            # Skip title and metadata sections (usually first 3 parts)
-            for part in content_parts[3:]:
-                if part and len(part.strip()) > 10:  # Skip empty or very short parts
-                    summary = part.strip()
-                    break
-            
-            if not summary and len(content_parts) > 3:
-                # Fallback to using any non-empty part
-                summary = content_parts[3].strip()
+            # If summary is still empty, use first paragraph of content
+            if not summary:
+                content_parts = content.split('\n\n')
+                for part in content_parts[3:]:  # Skip metadata
+                    if part and len(part.strip()) > 10:
+                        summary = part.strip()
+                        break
             
             # Get currency pair from symbol
             symbol_parts = symbol.split('_')
@@ -234,6 +507,24 @@ def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo
                 currency = f"{symbol_parts[0].upper()}/{symbol_parts[1].upper()}"
             else:
                 currency = symbol.upper()
+            
+            # Extract sentiment and score from the file if available
+            sentiment_label = "neutral"  # Default sentiment
+            sentiment_score = 0.0  # Default score
+            
+            # Look for sentiment data at the end of the file
+            sentiment_match = re.search(r'SENTIMENT:\s(.*?)$', content, re.MULTILINE)
+            if sentiment_match:
+                sentiment_label = sentiment_match.group(1).strip()
+                logger.debug(f"Found saved sentiment in file: {sentiment_label}")
+            
+            score_match = re.search(r'SCORE:\s([-\d\.]+)$', content, re.MULTILINE)
+            if score_match:
+                try:
+                    sentiment_score = float(score_match.group(1).strip())
+                    logger.debug(f"Found saved sentiment score in file: {sentiment_score}")
+                except ValueError:
+                    logger.warning(f"Could not parse sentiment score from file: {score_match.group(1)}")
             
             # Create news item
             news_item = {
@@ -243,20 +534,48 @@ def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo
                 "currency": currency,
                 "source": source,
                 "url": url,
-                "summary": summary[:300] + ("..." if len(summary) > 300 else ""),
-                "related_tickers": []
+                "summary": summary,
+                "related_tickers": [],
+                "file_path": file_path,  # Add this line to store the file path
+                "sentiment": sentiment_label,
+                "score": sentiment_score
             }
             
-            # Analyze sentiment for the content
-            text_for_sentiment = title + " " + summary
-            sentiment_label, sentiment_score = analyze_sentiment(text_for_sentiment, mode='finbert')
-            
-            # Add sentiment to news item
-            news_item["score"] = sentiment_score
-            news_item["sentiment"] = sentiment_label
+            # Only recalculate sentiment if not found in the file
+            if not sentiment_match or not score_match:
+                logger.info(f"No saved sentiment found for {filename}, calculating now")
+                # Calculate sentiment using title and summary
+                text_for_sentiment = title + " " + summary
+                try:
+                    # First try with FinBERT for faster processing
+                    sentiment_label, sentiment_score = analyze_sentiment(text_for_sentiment, 'finbert')
+                    
+                    # Then with the ensemble if API key is available
+                    if 'api_key' in globals() and api_key:
+                        sentiment_label, sentiment_score = analyze_sentiment(
+                            text_for_sentiment, 
+                            mode='ensemble', 
+                            api_key='1i1PR8oSJwazWAyOj3iXiRoiCThZI6qj'
+                        )
+                    
+                    # Update the news item
+                    news_item["sentiment"] = sentiment_label
+                    news_item["score"] = sentiment_score
+                    
+                    # Optionally, update the file with the calculated sentiment
+                    try:
+                        with open(file_path, 'a', encoding='utf-8') as f:
+                            f.write(f"\n\n---\nSENTIMENT: {sentiment_label}\n")
+                            f.write(f"SCORE: {sentiment_score}\n")
+                        logger.info(f"Updated file {filename} with calculated sentiment")
+                    except Exception as e:
+                        logger.warning(f"Could not update file with sentiment: {str(e)}")
+                        
+                except Exception as e:
+                    logger.error(f"Error calculating sentiment: {str(e)}")
             
             loaded_news.append(news_item)
-            logger.info(f"Loaded news item from {file_path}: {title} ({timestamp.isoformat()})")
+            logger.info(f"Loaded news item from {file_path}: {title} ({timestamp.isoformat()}) - {sentiment_label} ({sentiment_score})")
             
         except Exception as e:
             logger.error(f"Error loading news from file {file_path}: {str(e)}")
@@ -427,10 +746,10 @@ def process_news_item(
                         debug_log.append(f"Skipping old article: {article_timestamp} <= {latest_timestamp}")
                         return None
         
-        # Download the article
+        # Download the article without sentiment analysis
         logger.info(f"Downloading article: {title} -> {link}")
         article_file = download_single_article(symbol, link, folder=news_folder)
-        
+
         # Process the downloaded article
         if not article_file:
             logger.warning(f"Failed to download article or article already exists: {title}")
@@ -456,42 +775,10 @@ def process_news_item(
             "currency": f"{base}/{quote}",
             "source": source,
             "url": link,
-            "related_tickers": tickers
+            "related_tickers": tickers,
+            "file_path": article_file  # Store file path for later sentiment analysis
         }
         
-        # Extract summary if available
-        summary_element = item.select_one('p.clamp')
-        if summary_element:
-            news_item["summary"] = summary_element.text.strip()
-        
-        # Analyze sentiment 
-        if article_file:
-            try:
-                # Read the full article content from the downloaded file
-                with open(article_file, 'r', encoding='utf-8') as f:
-                    full_content = f.read()
-                    
-                # Use the full content for sentiment analysis
-                text_for_sentiment = full_content
-            except Exception as e:
-                logger.error(f"Error reading article file for sentiment analysis: {str(e)}")
-                # Fall back to title and summary if file reading fails
-                text_for_sentiment = title
-                if "summary" in news_item:
-                    text_for_sentiment += " " + news_item["summary"]
-        else:
-            # Fall back to title and summary if article file doesn't exist
-            text_for_sentiment = title
-            if "summary" in news_item:
-                text_for_sentiment += " " + news_item["summary"]
-
-        # Get the sentiment label and score
-        sentiment_label, sentiment_score = analyze_sentiment(text_for_sentiment, mode='finbert')
-
-        # Add sentiment to news item
-        news_item["score"] = sentiment_score
-        news_item["sentiment"] = sentiment_label
-
         return news_item
     
     except Exception as e:
@@ -508,7 +795,9 @@ def scrape_yahoo_finance_news(
     news_folder: str = "fx_news/scrapers/news/yahoo", 
     respect_robots_txt: bool = True,
     max_workers: int = 4,
-    request_timeout: int = 10
+    request_timeout: int = 10,
+    analyze_sentiment_now: bool = False,
+    sentiment_api_key: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Scrape news from Yahoo Finance for specified currency pairs, using timestamp tracking to avoid duplicates.
@@ -523,7 +812,10 @@ def scrape_yahoo_finance_news(
         respect_robots_txt: Whether to check and respect robots.txt rules
         max_workers: Maximum number of concurrent download workers
         request_timeout: Timeout for HTTP requests in seconds
+        analyze_sentiment_now: Whether to analyze sentiment after downloading articles
+        sentiment_api_key: API key for sentiment analysis
     """
+
     # Create a robots.txt parser if we're respecting robots.txt
     robot_parser = None
     if respect_robots_txt:
@@ -576,8 +868,12 @@ def scrape_yahoo_finance_news(
             symbol = f"{base}_{quote}"
             
             # Get the latest timestamp for this currency pair
-            from fx_news.scrapers.article_downloader import get_latest_timestamp
             latest_timestamp = get_latest_timestamp(news_folder, symbol)
+            if latest_timestamp > 0:
+                symbol_lower = symbol.lower()
+                if symbol_lower not in SESSION_PROCESSED_TIMESTAMPS:
+                    SESSION_PROCESSED_TIMESTAMPS[symbol_lower] = set()
+                SESSION_PROCESSED_TIMESTAMPS[symbol_lower].add(latest_timestamp)
             latest_date = datetime.fromtimestamp(latest_timestamp) if latest_timestamp > 0 else None
             
             logger.info(f"Scraping {base}/{quote} with latest timestamp: {latest_timestamp} ({latest_date})")
@@ -670,31 +966,51 @@ def scrape_yahoo_finance_news(
             logger.info(f"Downloaded {new_articles_count} new articles for {base}/{quote}")
             debug_log.append(f"Downloaded {new_articles_count} new articles for {base}/{quote}")
             all_news.extend(pair_news)
-            # Add cached news if requested
-            if include_cached:
-                try:
-                    cached_news = load_news_from_files(symbol, folder=news_folder, max_days_old=max_cached_days)
-                    
-                    # Filter out duplicates (by URL or timestamp)
-                    for news_item in cached_news:
-                        if not any(n.get("url") == news_item.get("url") for n in all_news) and \
-                           not any(n.get("unix_timestamp") == news_item.get("unix_timestamp") for n in all_news):
-                            all_news.append(news_item)
-                            logger.info(f"Added cached news item: {news_item.get('title')}")
-                            if debug_log is not None:
-                                debug_log.append(f"Added cached news item: {news_item.get('title')}")
-                except Exception as e:
-                    logger.error(f"Error loading cached news for {symbol}: {str(e)}")
-                    if debug_log is not None:
-                        debug_log.append(f"Error loading cached news for {symbol}: {str(e)}")
-                    
         except Exception as e:
             logger.error(f"Error processing currency pair {base}/{quote}: {str(e)}")
             if debug_log is not None:
                 debug_log.append(f"Error processing currency pair {base}/{quote}: {str(e)}")
     
+    # Load cached news if requested
+    cached_news = []
+    if include_cached:
+        for base, quote in currency_pairs:
+            try:
+                symbol = f"{base}_{quote}"
+                symbol_cached_news = load_news_from_files(symbol, folder=news_folder, max_days_old=max_cached_days)
+                
+                # Filter out duplicates
+                for news_item in symbol_cached_news:
+                    if not any(n.get("url") == news_item.get("url") for n in all_news) and \
+                       not any(n.get("unix_timestamp") == news_item.get("unix_timestamp") for n in all_news):
+                        cached_news.append(news_item)
+                        logger.info(f"Added cached news item: {news_item.get('title')}")
+                        if debug_log is not None:
+                            debug_log.append(f"Added cached news item: {news_item.get('title')}")
+            except Exception as e:
+                logger.error(f"Error loading cached news for {symbol}: {str(e)}")
+                if debug_log is not None:
+                    debug_log.append(f"Error loading cached news for {symbol}: {str(e)}")
+    
+    # Add cached news to the result
+    all_news.extend(cached_news)
+    
     # Sort news by timestamp (newest first)
     all_news.sort(key=lambda x: x.get("timestamp", datetime.now()), reverse=True)
+    
+    # Analyze sentiment in background if requested
+    if analyze_sentiment_now:
+        # Find news items without sentiment
+        news_items_without_sentiment = [n for n in all_news if 'sentiment' not in n or not n['sentiment']]
+        
+        if news_items_without_sentiment:
+            logger.info(f"Running sentiment analysis for {len(news_items_without_sentiment)} news items")
+            # Run sentiment analysis with rate limiting
+            analyze_news_sentiment(
+                news_items_without_sentiment, 
+                api_key=sentiment_api_key, 
+                delay_between_requests=1.0  # 1 second delay between requests
+            )
     
     return all_news
 
@@ -810,3 +1126,7 @@ if __name__ == "__main__":
     print(f"Total news articles: {len(news)}")
     for article in news[:5]:
         print(f"{article['timestamp']} - {article['title']} ({article['sentiment']})")
+
+    sample_text = "The economy is showing signs of recovery with increased consumer spending and positive job growth."
+    sentiment_label, sentiment_score = analyze_sentiment(sample_text, mode='finbert')
+    print(f"Sentiment Label: {sentiment_label}, Sentiment Score: {sentiment_score}")
