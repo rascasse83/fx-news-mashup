@@ -374,3 +374,10 @@ fx_news/scrapers/news/yahoo/timestamp_cache/usd_cad_latest.txt
 fx_news/scrapers/news/yahoo/timestamp_cache/usd_chf_latest.txt
 fx_news/scrapers/news/yahoo/timestamp_cache/usd_jpy_latest.txt
 fx_news/scrapers/news/yahoo/timestamp_cache/xrp_usd_latest.txt
+coinmarketcap_response.html
+.gitignore
+fx_news/scrapers/__pycache__/__init__.cpython-310.pyc
+fx_news/scrapers/__pycache__/analyze_sentiment.cpython-310.pyc
+fx_news/scrapers/__pycache__/article_downloader.cpython-310.pyc
+fx_news/scrapers/__pycache__/news_scraper.cpython-310.pyc
+fx_news/scrapers/news/yahoo/article_1737541452_usd_chf.txt
