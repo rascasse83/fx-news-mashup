@@ -22,6 +22,14 @@ from typing import List, Dict, Tuple, Set, Any, Optional, Union
 SESSION_PROCESSED_URLS = set()
 SESSION_PROCESSED_TIMESTAMPS = {}
 
+# Tentative backoff not working
+timestamp_cache = {}  # Existing cache for individual pairs
+latest_timestamp = 0  # New global variable to track latest timestamp across all pairs
+last_refresh_time = 0  # Track when we last successfully refreshed
+# The configurable back-off threshold (5 minutes = 300 seconds)
+REFRESH_BACKOFF_THRESHOLD = 300  # seconds
+
+
 # Load the FinBERT model and tokenizer - only when needed
 # We'll use lazy loading to improve startup time
 tokenizer = None
@@ -797,7 +805,8 @@ def scrape_yahoo_finance_news(
     max_workers: int = 4,
     request_timeout: int = 10,
     analyze_sentiment_now: bool = False,
-    sentiment_api_key: Optional[str] = None
+    sentiment_api_key: Optional[str] = None,
+    force_refresh=False
 ) -> List[Dict[str, Any]]:
     """
     Scrape news from Yahoo Finance for specified currency pairs, using timestamp tracking to avoid duplicates.
@@ -815,6 +824,17 @@ def scrape_yahoo_finance_news(
         analyze_sentiment_now: Whether to analyze sentiment after downloading articles
         sentiment_api_key: API key for sentiment analysis
     """
+
+    global global_latest_timestamp, last_refresh_time
+    
+    current_time = int(time.time())
+    
+    # Check if we need to back off (unless force_refresh is True)
+    if not force_refresh:
+        time_since_last_refresh = current_time - last_refresh_time
+        if time_since_last_refresh < REFRESH_BACKOFF_THRESHOLD:
+            print(f"Backing off. Only {time_since_last_refresh} seconds since last refresh (threshold: {REFRESH_BACKOFF_THRESHOLD})")
+            return None
 
     # Create a robots.txt parser if we're respecting robots.txt
     robot_parser = None
@@ -1012,6 +1032,15 @@ def scrape_yahoo_finance_news(
                 delay_between_requests=1.0  # 1 second delay between requests
             )
     
+    # After all the processing is done and timestamp_cache is updated
+    # Update the global_latest_timestamp based on all values in timestamp_cache
+    if timestamp_cache:
+        new_global_latest = max(timestamp_cache.values())
+        if new_global_latest > global_latest_timestamp:
+            global_latest_timestamp = new_global_latest
+            last_refresh_time = current_time
+    
+    # Return whatever your function was already returning
     return all_news
 
 def create_mock_news(currencies=None):
