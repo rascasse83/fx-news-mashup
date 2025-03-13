@@ -119,6 +119,37 @@ default_crypto_pairs = [
     {"base": "ETH", "quote": "BTC", "threshold": 0.5, "last_rate": None, "current_rate": None},
 ]
 
+default_indices = [
+    {"base": "^DJI", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},     # Dow Jones
+    {"base": "^GSPC", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},    # S&P 500
+    {"base": "^IXIC", "quote": "USD", "threshold": 0.5, "last_rate": None, "current_rate": None},    # NASDAQ
+    {"base": "^FTSE", "quote": "GBP", "threshold": 0.5, "last_rate": None, "current_rate": None},    # FTSE 100
+    {"base": "^GDAXI", "quote": "EUR", "threshold": 0.5, "last_rate": None, "current_rate": None},   # DAX
+    {"base": "^FCHI", "quote": "EUR", "threshold": 0.5, "last_rate": None, "current_rate": None},    # CAC 40
+    {"base": "^N225", "quote": "JPY", "threshold": 0.5, "last_rate": None, "current_rate": None},    # Nikkei 225
+]
+
+# Indices names mapping
+indices = {
+    '^DJI': 'Dow Jones',
+    '^GSPC': 'S&P 500',
+    '^IXIC': 'NASDAQ',
+    '^FTSE': 'FTSE 100',
+    '^GDAXI': 'DAX',
+    '^FCHI': 'CAC 40',
+    '^N225': 'Nikkei 225',
+}
+
+# Add indices regions mapping for map visualization
+indices_regions = {
+    '^DJI': {'country': 'United States', 'region': 'North America'},
+    '^GSPC': {'country': 'United States', 'region': 'North America'},
+    '^IXIC': {'country': 'United States', 'region': 'North America'},
+    '^FTSE': {'country': 'United Kingdom', 'region': 'Europe'},
+    '^GDAXI': {'country': 'Germany', 'region': 'Europe'},
+    '^FCHI': {'country': 'France', 'region': 'Europe'},
+    '^N225': {'country': 'Japan', 'region': 'Asia'},
+}
 
 # FX Currencies
 fx_currencies = {
@@ -186,8 +217,20 @@ currency_to_country = {
 }
 
 if 'market_type' not in st.session_state:
-    st.session_state.market_type = 'Crypto'  # Default to FX market
+    st.session_state.market_type = 'FX'  # Default to FX market
 
+if 'indices_subscriptions' not in st.session_state:
+    st.session_state.indices_subscriptions = default_indices
+
+if 'indices_news' not in st.session_state:
+    st.session_state.indices_news = []
+
+if 'last_indices_news_fetch' not in st.session_state:
+    st.session_state.last_indices_news_fetch = None
+
+if 'next_indices_news_refresh_time' not in st.session_state:
+    st.session_state.next_indices_news_refresh_time = datetime.now() + timedelta(seconds=300)  # 5 minutes
+    
 # Initialize session state only once
 for key, default_value in {
     'subscriptions': default_fx_pairs if st.session_state.get('market_type', 'FX') == 'FX' else default_crypto_pairs,
@@ -207,7 +250,7 @@ for key, default_value in {
     'last_auto_refresh_time': datetime.now(),
     'fx_subscriptions': default_fx_pairs,  # Store FX subscriptions separately
     'crypto_subscriptions': default_crypto_pairs,  # Store crypto subscriptions separately
-    'collapse_all_cards': True,  # Default to collapsed cards
+    'collapse_all_cards': False,  # Default to collapsed cards
 }.items():
     # Only set the value if the key doesn't exist in session state
     if key not in st.session_state:
@@ -236,11 +279,12 @@ if 'refresh_news_clicked' not in st.session_state:
 # This section should come after the session state initialization
 if st.session_state.market_type == 'FX':
     available_currencies = fx_currencies
-    # Also update the currency to country mapping - may need to modify for Crypto
-else:
+elif st.session_state.market_type == 'Crypto':
     available_currencies = crypto_currencies
     # For crypto, we might want to create a special mapping
     # or just use a simpler representation for the map
+else:  # Indices
+    available_currencies = indices
 
 
 # Initialize the session state for crypto events if not yet done
@@ -1615,6 +1659,61 @@ if 'economic_events_last_fetch' not in st.session_state:
     st.session_state.economic_events_last_fetch = None
 
 
+def fetch_indices_news(indices_list=None, use_mock_fallback=True, force=False):
+    """Fetch news for indices, with fallback to mock data."""
+    
+    # Check if we need to refresh at all
+    if not force and 'last_indices_news_fetch' in st.session_state and st.session_state.last_indices_news_fetch:
+        # Don't refresh if it's been less than 60 seconds since last refresh
+        seconds_since_refresh = (datetime.now() - st.session_state.last_indices_news_fetch).total_seconds()
+        if seconds_since_refresh < 60:
+            if 'show_debug' in st.session_state and st.session_state.show_debug:
+                st.info(f"Skipping indices news refresh (last refresh {seconds_since_refresh:.0f}s ago)")
+            if 'indices_news' in st.session_state and st.session_state.indices_news:
+                return st.session_state.indices_news
+    
+    # Get list of indices from subscriptions
+    if indices_list is None and 'subscriptions' in st.session_state:
+        indices_list = [sub["base"] for sub in st.session_state.subscriptions 
+                      if sub["base"].startswith('^') or sub["base"] in indices]
+    
+    if not indices_list:
+        indices_list = ['^DJI', '^GSPC', '^IXIC', '^FTSE', '^GDAXI', '^FCHI', '^N225']
+    
+    # Initialize debug log
+    if 'debug_log' not in st.session_state or not isinstance(st.session_state.debug_log, list):
+        st.session_state.debug_log = []
+    
+    st.session_state.debug_log.append(f"Attempting to fetch news for {len(indices_list)} indices")
+    
+    try:
+        with st.spinner("Fetching latest indices news..."):
+            news_items = scrape_indices_news(indices_list, debug_log=st.session_state.debug_log)
+            
+            if news_items:
+                add_notification(f"Successfully fetched {len(news_items)} indices news items", "success")
+                st.session_state.last_indices_news_fetch = datetime.now()
+                st.session_state.indices_news = news_items
+                return news_items
+            else:
+                st.session_state.debug_log.append("No indices news items found")
+    except Exception as e:
+        if isinstance(st.session_state.debug_log, list):
+            st.session_state.debug_log.append(f"Error fetching indices news: {str(e)}")
+        add_notification(f"Error fetching indices news: {str(e)}", "error")
+    
+    if use_mock_fallback:
+        add_notification("Using mock indices news data as fallback", "info")
+        mock_news = create_mock_indices_news(indices_list)
+        st.session_state.indices_news = mock_news
+        st.session_state.last_indices_news_fetch = datetime.now()
+        return mock_news
+    
+    if 'indices_news' in st.session_state and st.session_state.indices_news:
+        return st.session_state.indices_news
+    
+    return []
+
 # Add the fetch_news function to your main app since it depends on st.session_state
 def fetch_news(currencies=None, use_mock_fallback=True, force=False):
     """Fetch news for currency pairs, with prioritization of local disk cache."""
@@ -1622,18 +1721,21 @@ def fetch_news(currencies=None, use_mock_fallback=True, force=False):
     # Check if we need to refresh at all
     if not force and 'last_news_fetch' in st.session_state and st.session_state.last_news_fetch:
         # Don't refresh if it's been less than 60 seconds since last refresh
-        # This prevents excessive API calls even with manual refreshes
         seconds_since_refresh = (datetime.now() - st.session_state.last_news_fetch).total_seconds()
         if seconds_since_refresh < 60:
-            if 'show_debug' in st.session_state and st.session_state.show_debug:
-                st.info(f"Skipping news refresh (last refresh {seconds_since_refresh:.0f}s ago)")
             if 'cached_news' in st.session_state:
                 return st.session_state.cached_news
             
     if 'subscriptions' not in st.session_state:
         return []
 
-    currency_pairs = list(set((sub["base"], sub["quote"]) for sub in st.session_state.subscriptions))
+    # For indices, we want to use just the base (not currency pairs)
+    if st.session_state.market_type == 'Indices':
+        # Get list of indices
+        currency_pairs = [(sub["base"], sub["quote"]) for sub in st.session_state.subscriptions]
+    else:
+        # Regular currency pairs for FX and Crypto
+        currency_pairs = list(set((sub["base"], sub["quote"]) for sub in st.session_state.subscriptions))
 
     if not currency_pairs:
         return []
@@ -2147,6 +2249,269 @@ def update_rates(use_mock_data=False):
         add_notification(f"Error updating rates: {str(e)}", "error")
         return False
 
+def display_indices_world_map():
+    """Create a world map visualization showing performance of major indices by region"""
+    
+    # Map indices to their countries/regions
+    indices_regions = {
+        '^DJI': {'country': 'United States', 'region': 'North America'},
+        '^GSPC': {'country': 'United States', 'region': 'North America'},
+        '^IXIC': {'country': 'United States', 'region': 'North America'},
+        '^FTSE': {'country': 'United Kingdom', 'region': 'Europe'},
+        '^GDAXI': {'country': 'Germany', 'region': 'Europe'},
+        '^FCHI': {'country': 'France', 'region': 'Europe'},
+        '^N225': {'country': 'Japan', 'region': 'Asia'},
+        # Add more indices as needed
+    }
+    
+    # Create data for the map
+    map_data = []
+    
+    for sub in st.session_state.subscriptions:
+        if sub["current_rate"] is not None and sub["base"] in indices_regions:
+            # Calculate percent change
+            percent_change = 0
+            if sub.get("previous_close") is not None:
+                percent_change = ((sub["current_rate"] - sub["previous_close"]) / sub["previous_close"]) * 100
+            elif sub.get("last_rate") is not None:
+                percent_change = ((sub["current_rate"] - sub["last_rate"]) / sub["last_rate"]) * 100
+            
+            # Get country information
+            country = indices_regions[sub["base"]]['country']
+            name = indices.get(sub["base"], sub["base"])
+            
+            map_data.append({
+                "country": country,
+                "index": name,
+                "symbol": sub["base"],
+                "change": percent_change,
+                "current_value": sub["current_rate"]
+            })
+    
+    if not map_data:
+        st.info("No indices data available for map visualization.")
+        return
+    
+    # Create the choropleth map
+    fig = go.Figure(data=go.Choropleth(
+        locations=[d["country"] for d in map_data],
+        locationmode='country names',
+        z=[d["change"] for d in map_data],
+        text=[f"{d['index']}: {d['change']:.2f}%<br>Value: {d['current_value']:,.2f}" for d in map_data],
+        colorscale='RdBu_r',  # Red for negative, Blue for positive
+        zmin=-3,  # Set lower bound for color scale
+        zmax=3,   # Set upper bound for color scale
+        marker_line_color='darkgray',
+        marker_line_width=0.5,
+        colorbar_title='Change %',
+        hoverinfo='text+location'
+    ))
+    
+    # Update layout
+    fig.update_layout(
+        title_text='Global Market Performance by Country',
+        geo=dict(
+            showframe=False,
+            showcoastlines=True,
+            projection_type='natural earth',
+            bgcolor='rgba(18,18,18,0)',  # Transparent background
+            lakecolor='#121212',  # Dark lakes to match background
+            landcolor='#2d2d2d',  # Dark land color
+            coastlinecolor='#555555',  # Medium gray coastlines
+        ),
+        height=450,
+        margin=dict(l=0, r=0, t=40, b=0),
+        paper_bgcolor="#121212",
+        font=dict(color="white")
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Create regional performance mini cards below the map
+    st.markdown("### Regional Market Performance")
+    
+    # Group data by region
+    regions = {}
+    for sub in st.session_state.subscriptions:
+        if sub["current_rate"] is not None and sub["base"] in indices_regions:
+            region = indices_regions[sub["base"]]['region']
+            
+            if region not in regions:
+                regions[region] = []
+            
+            # Calculate percent change
+            percent_change = 0
+            if sub.get("previous_close") is not None:
+                percent_change = ((sub["current_rate"] - sub["previous_close"]) / sub["previous_close"]) * 100
+            elif sub.get("last_rate") is not None:
+                percent_change = ((sub["current_rate"] - sub["last_rate"]) / sub["last_rate"]) * 100
+            
+            regions[region].append({
+                "index": indices.get(sub["base"], sub["base"]),
+                "change": percent_change,
+                "current_value": sub["current_rate"]
+            })
+    
+    # Calculate average performance by region
+    region_performance = {}
+    for region, indices_list in regions.items():
+        if indices_list:
+            avg_change = sum(idx["change"] for idx in indices_list) / len(indices_list)
+            region_performance[region] = {
+                "avg_change": avg_change,
+                "indices": indices_list
+            }
+    
+    # Create regional performance cards
+    cols = st.columns(len(region_performance) or 1)
+    
+    for i, (region, data) in enumerate(region_performance.items()):
+        with cols[i]:
+            # Determine color based on average change
+            if data["avg_change"] > 0:
+                color = "#4CAF50"  # Green
+                icon = "📈"
+            else:
+                color = "#F44336"  # Red
+                icon = "📉"
+            
+            # Create the region card
+            st.markdown(f"""
+            <div style="border-left: 4px solid {color}; background-color:#1E1E1E; padding:15px; border-radius:5px; margin-bottom:10px;">
+                <div style="font-size:1.2rem; font-weight:bold; margin-bottom:10px;">{icon} {region}</div>
+                <div style="font-size:1.4rem; color:{color}; font-weight:bold; margin-bottom:10px;">
+                    {'+' if data["avg_change"] > 0 else ''}{data["avg_change"]:.2f}%
+                </div>
+                <div style="font-size:0.9rem; color:#AAAAAA;">Average of {len(data["indices"])} indices</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # List the indices in this region
+            for idx in sorted(data["indices"], key=lambda x: x["change"], reverse=True):
+                change_color = "#4CAF50" if idx["change"] > 0 else "#F44336"
+                
+                st.markdown(f"""
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px; padding:8px; background-color:#121212; border-radius:3px;">
+                    <span style="font-size:0.9rem;">{idx["index"]}</span>
+                    <span style="font-size:0.9rem; color:{change_color}; font-weight:bold;">
+                        {'+' if idx["change"] > 0 else ''}{idx["change"]:.2f}%
+                    </span>
+                </div>
+                """, unsafe_allow_html=True)
+                
+def display_indices_visualization():
+    """Display an indices market visualization"""
+    
+    # Data for the visualization
+    indices_data = []
+    
+    for sub in st.session_state.subscriptions:
+        if sub["current_rate"] is not None:
+            # Calculate percent change
+            percent_change = 0
+            if sub.get("previous_close") is not None:
+                percent_change = ((sub["current_rate"] - sub["previous_close"]) / sub["previous_close"]) * 100
+            elif sub.get("last_rate") is not None:
+                percent_change = ((sub["current_rate"] - sub["last_rate"]) / sub["last_rate"]) * 100
+            
+            # Get the human-readable name
+            name = indices.get(sub["base"], sub["base"])
+            
+            indices_data.append({
+                "index": name,
+                "symbol": sub["base"],
+                "price": sub["current_rate"],
+                "change": percent_change,
+                "quote": sub["quote"]
+            })
+    
+    if not indices_data:
+        st.info("No indices data available yet. Add some indices to see the visualization.")
+        return
+    
+    # Sort by percent change (descending)
+    indices_data = sorted(indices_data, key=lambda x: x["change"], reverse=True)
+    
+    # Create a bar chart showing change percentages
+    fig = go.Figure()
+    
+    # Add bars
+    fig.add_trace(go.Bar(
+        x=[d["index"] for d in indices_data],
+        y=[d["change"] for d in indices_data],
+        text=[f"{d['change']:.2f}%" for d in indices_data],
+        textposition='auto',
+        marker_color=[
+            '#4CAF50' if d["change"] > 0 else '#F44336' for d in indices_data
+        ],
+        hovertemplate='<b>%{x}</b><br>Change: %{y:.2f}%<br>Value: %{customdata}<extra></extra>',
+        customdata=[f"{d['price']:,.2f} {d['quote']}" for d in indices_data]
+    ))
+    
+    # Update layout
+    fig.update_layout(
+        title="Major Indices Performance",
+        height=350,
+        margin=dict(l=10, r=10, t=50, b=10),
+        paper_bgcolor="#121212",
+        plot_bgcolor="#121212",
+        font=dict(color="white"),
+        xaxis=dict(
+            title="",
+            tickangle=-45,
+            tickfont=dict(size=12),
+            gridcolor="#333333"
+        ),
+        yaxis=dict(
+            title="Change (%)",
+            ticksuffix="%",
+            gridcolor="#333333"
+        )
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Add a heat map showing the current indices values
+    st.subheader("Global Indices Heatmap")
+    
+    # Set up the grid for the heatmap
+    cols = st.columns(3)
+    
+    for i, index_data in enumerate(indices_data):
+        col_idx = i % 3
+        with cols[col_idx]:
+            # Determine color based on change percentage
+            if index_data["change"] > 1.5:
+                bg_color = "#1B5E20"  # Dark green
+            elif index_data["change"] > 0:
+                bg_color = "#4CAF50"  # Green
+            elif index_data["change"] > -1.5:
+                bg_color = "#F44336"  # Red
+            else:
+                bg_color = "#B71C1C"  # Dark red
+            
+            # Format price based on currency
+            if index_data["quote"] == "USD":
+                price_formatted = f"${index_data['price']:,.2f}"
+            elif index_data["quote"] == "EUR":
+                price_formatted = f"€{index_data['price']:,.2f}"
+            elif index_data["quote"] == "GBP":
+                price_formatted = f"£{index_data['price']:,.2f}"
+            elif index_data["quote"] == "JPY":
+                price_formatted = f"¥{index_data['price']:,.2f}"
+            else:
+                price_formatted = f"{index_data['price']:,.2f} {index_data['quote']}"
+            
+            # Create the index card
+            st.markdown(f"""
+            <div style="background-color:{bg_color}; padding:15px; border-radius:5px; margin-bottom:15px; text-align:center;">
+                <div style="font-size:1.1rem; font-weight:bold; color:white; margin-bottom:5px;">{index_data['index']}</div>
+                <div style="font-size:1.5rem; font-weight:bold; color:white;">{price_formatted}</div>
+                <div style="font-size:1.1rem; color:white;">
+                    {'+' if index_data['change'] > 0 else ''}{index_data['change']:.2f}%
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
 def display_crypto_market_visualization():
     """Display a crypto market visualization using a better scaling approach"""
@@ -2829,12 +3194,17 @@ st.markdown("<hr style='margin-top:0.5rem; margin-bottom:1rem;'>", unsafe_allow_
 with st.expander("View Trader Sentiment Overview", expanded=False):
     sent_col1, sent_col2, sent_col3 = st.columns([1, 1, 1])
     
-    # First load sentiment data if needed
-    if 'fxbook_sentiment_data' not in st.session_state or not st.session_state.fxbook_sentiment_data:
-        with st.spinner("Loading sentiment data..."):
-            update_all_sentiment_data()
-    
-    sentiment_data = st.session_state.get('fxbook_sentiment_data', {})
+    # Check if auto-refresh is enabled before loading sentiment data
+    if st.session_state.auto_refresh:
+        if 'fxbook_sentiment_data' not in st.session_state or not st.session_state.fxbook_sentiment_data:
+            with st.spinner("Loading sentiment data..."):
+                update_all_sentiment_data()
+        sentiment_data = st.session_state.get('fxbook_sentiment_data', {})
+    else:
+        # When auto-refresh is disabled, provide an empty dictionary instead of loading data
+        sentiment_data = {}
+        
+    # This will now work even if sentiment_data is an empty dictionary
     pairs_data = sentiment_data.get('data', {})
     
     with sent_col1:
@@ -2968,7 +3338,8 @@ with st.sidebar:
      
     # Create toggle buttons for market selection
     col1, col2 = st.columns(2)
-    
+    col3, col4 = st.columns(2)
+
     with col1:
         fx_button = st.button(
             "FX Market", 
@@ -2976,12 +3347,20 @@ with st.sidebar:
             help="Switch to Foreign Exchange market pairs",
             use_container_width=True
         )
-    
+
     with col2:
         crypto_button = st.button(
             "Crypto Market", 
             key="crypto_toggle",
             help="Switch to Cryptocurrency market pairs",
+            use_container_width=True
+        )
+
+    with col3:
+        indices_button = st.button(
+            "Indices", 
+            key="indices_toggle",
+            help="Switch to Stock Indices",
             use_container_width=True
         )
     
@@ -3001,7 +3380,7 @@ with st.sidebar:
             """, 
             unsafe_allow_html=True
         )
-    else:
+    elif current_market == 'Crypto':
         st.markdown(
             """
             <div style="display: flex; justify-content: center; margin-bottom: 15px;">
@@ -3013,56 +3392,64 @@ with st.sidebar:
             """, 
             unsafe_allow_html=True
         )
-    
+    elif current_market == 'Indices':
+        st.markdown(
+            """
+            <div style="display: flex; justify-content: center; margin-bottom: 15px;">
+                <div style="background-color: #FF9800; color: white; padding: 5px 15px; 
+                border-radius: 20px; font-weight: bold;">
+                    📈 Indices Mode
+                </div>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
     # Add a separator
     st.markdown("<hr>", unsafe_allow_html=True)
     
     # Handle market switching logic
+    if indices_button and st.session_state.market_type != 'Indices':
+        # Save current subscriptions based on the current market type
+        if st.session_state.market_type == 'FX':
+            st.session_state.fx_subscriptions = st.session_state.subscriptions
+        elif st.session_state.market_type == 'Crypto':
+            st.session_state.crypto_subscriptions = st.session_state.subscriptions
+        
+        # Switch to Indices
+        st.session_state.market_type = 'Indices'
+        
+        # Restore indices subscriptions
+        st.session_state.subscriptions = st.session_state.indices_subscriptions
+        
+        # Clear cached news and refresh data
+        st.session_state.cached_news = []
+        st.session_state.last_news_fetch = None
+        
+        # Update available currencies
+        available_currencies = indices
+        
+        # Notify user
+        add_notification("Switched to Indices Market", "system")
+        
+        # Rerun to refresh the UI
+        st.rerun()
+        
     if fx_button and st.session_state.market_type != 'FX':
-        # Save current crypto subscriptions
-        st.session_state.crypto_subscriptions = st.session_state.subscriptions
+        # Save current subscriptions
+        if st.session_state.market_type == 'Crypto':
+            st.session_state.crypto_subscriptions = st.session_state.subscriptions
+        elif st.session_state.market_type == 'Indices':
+            st.session_state.indices_subscriptions = st.session_state.subscriptions
         
-        # Switch to FX
-        st.session_state.market_type = 'FX'
-        
-        # Restore FX subscriptions
-        st.session_state.subscriptions = st.session_state.fx_subscriptions
-        
-        # Clear cached news and refresh data
-        st.session_state.cached_news = []
-        st.session_state.last_news_fetch = None
-        
-        # Update available currencies
-        available_currencies = fx_currencies
-        
-        # Notify user
-        add_notification("Switched to FX Market", "system")
-        
-        # Rerun to refresh the UI
-        st.rerun()
-        
+        # Rest of your existing code...
+
+    # Step 8: Update the crypto button handler similarly
     if crypto_button and st.session_state.market_type != 'Crypto':
-        # Save current FX subscriptions
-        st.session_state.fx_subscriptions = st.session_state.subscriptions
-        
-        # Switch to Crypto
-        st.session_state.market_type = 'Crypto'
-        
-        # Restore crypto subscriptions
-        st.session_state.subscriptions = st.session_state.crypto_subscriptions
-        
-        # Clear cached news and refresh data
-        st.session_state.cached_news = []
-        st.session_state.last_news_fetch = None
-        
-        # Update available currencies
-        available_currencies = crypto_currencies
-        
-        # Notify user
-        add_notification("Switched to Crypto Market", "system")
-        
-        # Rerun to refresh the UI
-        st.rerun()
+        # Save current subscriptions
+        if st.session_state.market_type == 'FX':
+            st.session_state.fx_subscriptions = st.session_state.subscriptions
+        elif st.session_state.market_type == 'Indices':
+            st.session_state.indices_subscriptions = st.session_state.subscriptions
 
     # After your existing navigation buttons, add:
     if st.button("👥 Go to Sentiment Dashboard", use_container_width=True):
@@ -3337,10 +3724,19 @@ with col4:
                     st.plotly_chart(fig_asia, use_container_width=True)
                 else:
                     st.info("No variation data available for Asian countries")
-        else:
-            # Use crypto visualization instead
+        elif st.session_state.market_type == 'Crypto':
+            # Your existing crypto visualization
             st.subheader("Cryptocurrency Market Overview")
             display_crypto_market_visualization()
+        elif st.session_state.market_type == 'Indices':
+            # Add indices visualizations
+            tab1, tab2 = st.tabs(["Performance Overview", "World Map"])
+            
+            with tab1:
+                display_indices_visualization()
+            
+            with tab2:
+                display_indices_world_map()
 
     # Currency Rates middle section
     st.header("Currency Rates")

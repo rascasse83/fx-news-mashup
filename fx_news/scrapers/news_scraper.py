@@ -17,6 +17,7 @@ import backoff
 from transformers import BertTokenizer, BertForSequenceClassification
 import torch
 from typing import List, Dict, Tuple, Set, Any, Optional, Union
+import streamlit as st
 
 # Session tracking sets to avoid re-processing the same content
 SESSION_PROCESSED_URLS = set()
@@ -70,7 +71,594 @@ def mark_timestamp_processed(symbol: str, timestamp: int) -> None:
     # Also update the timestamp cache file
     update_timestamp_cache(symbol, timestamp, "fx_news/scrapers/news/yahoo")
 
+def get_random_headers():
+    """Generate random headers to avoid detection"""
+    user_agents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0'
+    ]
+    return {
+        'User-Agent': random.choice(user_agents),
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+    }
 
+def scrape_indices_news(indices_list: Optional[List[str]] = None, limit: int = 10, 
+                        debug_log: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    """
+    Scrape news related to stock indices from Yahoo Finance
+    
+    Args:
+        indices_list: List of index symbols to search for
+        limit: Maximum number of news items to return per index
+        debug_log: Optional list to append debug information
+        
+    Returns:
+        List of news items with title, summary, source, timestamp, etc.
+    """
+    if debug_log is None:
+        debug_log = []
+        
+    if indices_list is None:
+        indices_list = ['^DJI', '^GSPC', '^IXIC', '^FTSE', '^GDAXI', '^FCHI', '^N225']
+    
+    all_news = []
+    
+    # Map indices to their proper names for better context in news
+    indices_names = {
+        '^DJI': 'Dow Jones',
+        '^GSPC': 'S&P 500',
+        '^IXIC': 'NASDAQ',
+        '^FTSE': 'FTSE 100',
+        '^GDAXI': 'DAX',
+        '^FCHI': 'CAC 40',
+        '^N225': 'Nikkei 225',
+    }
+    
+    # First try to get news from the main market page which has more relevant market overview news
+    market_urls = [
+        "https://finance.yahoo.com/topic/stock-market-news/",
+        "https://finance.yahoo.com/topic/market-news/"
+    ]
+    
+    for url in market_urls:
+        try:
+            debug_log.append(f"Fetching general market news from {url}")
+            logger.info(f"Fetching general market news from {url}")
+            headers = get_random_headers()
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Find all news article items
+                news_items = soup.find_all('li', class_='js-stream-content')
+                
+                for item in news_items[:limit]:
+                    try:
+                        # Extract title, link, and source
+                        title_elem = item.find('h3')
+                        if not title_elem:
+                            continue
+                            
+                        title = title_elem.text.strip()
+                        
+                        # Extract link
+                        link_elem = item.find('a')
+                        link = "https://finance.yahoo.com" + link_elem['href'] if link_elem and 'href' in link_elem.attrs else ""
+                        
+                        # Extract source and time
+                        source_elem = item.find('div', class_='C(#959595)')
+                        source = ""
+                        time_str = ""
+                        
+                        if source_elem:
+                            source_text = source_elem.text.strip()
+                            # Parse source and time from text like "Yahoo Finance·2 hours ago"
+                            if '·' in source_text:
+                                source, time_str = source_text.split('·', 1)
+                                source = source.strip()
+                                time_str = time_str.strip()
+                        
+                        # Extract summary if available
+                        summary_elem = item.find('p')
+                        summary = summary_elem.text.strip() if summary_elem else ""
+                        
+                        # Create timestamp
+                        timestamp = datetime.now()
+                        if time_str:
+                            if 'minute' in time_str:
+                                minutes = int(re.search(r'(\d+)', time_str).group(1))
+                                timestamp = datetime.now() - timedelta(minutes=minutes)
+                            elif 'hour' in time_str:
+                                hours = int(re.search(r'(\d+)', time_str).group(1))
+                                timestamp = datetime.now() - timedelta(hours=hours)
+                            elif 'day' in time_str:
+                                days = int(re.search(r'(\d+)', time_str).group(1))
+                                timestamp = datetime.now() - timedelta(days=days)
+                        
+                        # Add market tag to general market news
+                        news_item = {
+                            "title": title,
+                            "summary": summary,
+                            "url": link,
+                            "source": source if source else "Yahoo Finance",
+                            "timestamp": timestamp,
+                            "unix_timestamp": int(timestamp.timestamp()),
+                            "currency": "Market", # Use "Market" as currency for general market news
+                            "currency_pairs": {"Market"},
+                            "sentiment": "neutral",  # Default sentiment
+                            "score": 0.0,  # Default score
+                        }
+                        
+                        # Save article to disk for future analysis
+                        save_news_article_to_disk(news_item, 'market')
+                        
+                        all_news.append(news_item)
+                    except Exception as e:
+                        debug_log.append(f"Error parsing market news item: {str(e)}")
+                        logger.error(f"Error parsing market news item: {str(e)}")
+            
+            debug_log.append(f"Fetched {len(all_news)} general market news items")
+            logger.info(f"Fetched {len(all_news)} general market news items")
+        except Exception as e:
+            debug_log.append(f"Error fetching market news from {url}: {str(e)}")
+            logger.error(f"Error fetching market news from {url}: {str(e)}")
+    
+    # Then get index-specific news
+    for index in indices_list:
+        try:
+            index_name = indices_names.get(index, index)
+            debug_log.append(f"Fetching news for {index_name}")
+            logger.info(f"Fetching news for {index_name}")
+            
+            # Yahoo Finance URL for specific index
+            if index.startswith('^'):
+                # Use the correct URL format for indices with /news/ endpoint
+                url = f"https://finance.yahoo.com/quote/{index.replace('^', '%5E')}/news/"
+            else:
+                url = f"https://finance.yahoo.com/quote/{index}/news/"
+            
+            headers = get_random_headers()
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Find the news section
+                news_items = []
+
+                # Strategy 1: Look for items in the standard news stream container
+                news_section = soup.find('div', id='quoteNewsStream-0-Stream')
+                if news_section:
+                    news_items = news_section.find_all('li', class_='js-stream-content')
+
+                # Strategy 2: If no items found, try the general news list
+                if not news_items:
+                    news_items = soup.find_all('li', class_='js-stream-content')
+
+                # Strategy 3: Try looking for newer Yahoo Finance news item structure
+                if not news_items:
+                    news_items = soup.select('div[data-test="finance-list-item"]')
+
+                # Strategy 4: Try finding items in other common containers
+                if not news_items:
+                    for container_selector in ['ul.My(0)', 'div.headlines-list', 'div.news-stream']:
+                        container = soup.select_one(container_selector)
+                        if container:
+                            news_items.extend(container.find_all('li'))
+
+                # Strategy 5: Look for article elements directly
+                if not news_items:
+                    news_items = soup.find_all('article')
+
+                # Check if we found any news items
+                if not news_items:
+                    debug_log.append(f"Could not find news items for {index_name}")
+                    logger.warning(f"Could not find news items for {index_name}")
+                    continue
+
+                logger.info(f"Found {len(news_items)} news items for {index_name}")
+                debug_log.append(f"Found {len(news_items)} news items for {index_name}")
+                
+                # Find all news items
+                news_items = news_section.find_all('li', class_='js-stream-content')
+                
+                for item in news_items[:limit]:
+                    try:
+                        # Extract title
+                        title_elem = item.find('h3')
+                        if not title_elem:
+                            continue
+                            
+                        title = title_elem.text.strip()
+                        
+                        # Extract link
+                        link_elem = item.find('a')
+                        link = "https://finance.yahoo.com" + link_elem['href'] if link_elem and 'href' in link_elem.attrs else ""
+                        
+                        # Extract source and time
+                        source_elem = item.find('div', class_='C(#959595)')
+                        source = ""
+                        time_str = ""
+                        
+                        if source_elem:
+                            source_text = source_elem.text.strip()
+                            # Parse source and time from text like "Yahoo Finance·2 hours ago"
+                            if '·' in source_text:
+                                source, time_str = source_text.split('·', 1)
+                                source = source.strip()
+                                time_str = time_str.strip()
+                            else:
+                                source = source_text
+                        
+                        # Extract summary if available
+                        summary_elem = item.find('p')
+                        summary = summary_elem.text.strip() if summary_elem else ""
+                        
+                        # Create timestamp
+                        timestamp = datetime.now()
+                        if time_str:
+                            if 'minute' in time_str:
+                                minutes = int(re.search(r'(\d+)', time_str).group(1))
+                                timestamp = datetime.now() - timedelta(minutes=minutes)
+                            elif 'hour' in time_str:
+                                hours = int(re.search(r'(\d+)', time_str).group(1))
+                                timestamp = datetime.now() - timedelta(hours=hours)
+                            elif 'day' in time_str:
+                                days = int(re.search(r'(\d+)', time_str).group(1))
+                                timestamp = datetime.now() - timedelta(days=days)
+                        
+                        # Create news item
+                        news_item = {
+                            "title": title,
+                            "summary": summary,
+                            "url": link,
+                            "source": source if source else "Yahoo Finance",
+                            "timestamp": timestamp,
+                            "unix_timestamp": int(timestamp.timestamp()),
+                            "currency": index_name,  # Use the index name as the currency
+                            "currency_pairs": {index_name},
+                            "sentiment": "neutral",  # Default sentiment
+                            "score": 0.0,  # Default score
+                        }
+                        
+                        # Save article to disk for future analysis
+                        save_news_article_to_disk(news_item, index.replace('^', ''))
+                        
+                        all_news.append(news_item)
+                    except Exception as e:
+                        debug_log.append(f"Error parsing news item for {index_name}: {str(e)}")
+                        logger.error(f"Error parsing news item for {index_name}: {str(e)}")
+                
+                debug_log.append(f"Fetched {len(news_items[:limit])} news items for {index_name}")
+                logger.info(f"Fetched {len(news_items[:limit])} news items for {index_name}")
+            else:
+                debug_log.append(f"Failed to fetch news for {index_name}: HTTP {response.status_code}")
+                logger.warning(f"Failed to fetch news for {index_name}: HTTP {response.status_code}")
+        except Exception as e:
+            debug_log.append(f"Error fetching news for {index_name}: {str(e)}")
+            logger.error(f"Error fetching news for {index_name}: {str(e)}")
+    
+    # Remove duplicates by URL
+    unique_news = {}
+    for item in all_news:
+        key = item.get('url', '') if item.get('url') else item.get('title', '')
+        if key and key not in unique_news:
+            unique_news[key] = item
+    
+    # Sort by timestamp, newest first
+    result = list(unique_news.values())
+    result.sort(key=lambda x: x["timestamp"], reverse=True)
+    
+    debug_log.append(f"Returning {len(result)} unique indices news items")
+    logger.info(f"Returning {len(result)} unique indices news items")
+    return result
+
+def create_mock_indices_news(indices_list=None):
+    """Create mock news items for indices when real data cannot be fetched"""
+    if indices_list is None:
+        indices_list = ['^DJI', '^GSPC', '^IXIC', '^FTSE', '^GDAXI', '^FCHI', '^N225']
+    
+    # Map indices to their proper names
+    indices_names = {
+        '^DJI': 'Dow Jones',
+        '^GSPC': 'S&P 500',
+        '^IXIC': 'NASDAQ',
+        '^FTSE': 'FTSE 100',
+        '^GDAXI': 'DAX',
+        '^FCHI': 'CAC 40',
+        '^N225': 'Nikkei 225',
+    }
+    
+    mock_news = []
+    current_time = datetime.now()
+    
+    # Sample news templates
+    news_templates = [
+        {"title": "{index} {direction} by {value}% as {factor} {impact} markets", 
+         "summary": "The {index} {direction} {value}% {timeframe} as investors react to {factor}. Analysts suggest this trend might {future}.",
+         "sentiment": "positive" if random.random() > 0.5 else "negative"},
+        
+        {"title": "{sector} stocks lead {index} {movement}",
+         "summary": "{sector} companies showed strong performance today, leading the {index} to {movement}. This comes after {news_event}.",
+         "sentiment": "positive" if random.random() > 0.5 else "negative"},
+        
+        {"title": "{index} {trades} as economic data {surprises} expectations",
+         "summary": "The latest economic figures {compared} analyst forecasts, causing the {index} to {trade_action}. Market watchers now anticipate {outlook}.",
+         "sentiment": "neutral"},
+        
+        {"title": "Market Report: {index} {closes} amid global {condition}",
+         "summary": "Global markets experienced {volatility} today with the {index} {closing}. Key factors include {factor1} and {factor2}.",
+         "sentiment": "positive" if random.random() > 0.5 else "negative"},
+    ]
+    
+    # Sample data to fill templates
+    directions = ["rises", "jumps", "climbs", "advances", "gains", "falls", "drops", "declines", "retreats", "slides"]
+    positive_directions = ["rises", "jumps", "climbs", "advances", "gains"]
+    values = [round(random.uniform(0.1, 3.5), 2) for _ in range(20)]
+    factors = ["interest rate expectations", "inflation data", "economic growth concerns", "corporate earnings", 
+               "central bank policy", "geopolitical tensions", "trade negotiations", "supply chain issues",
+               "consumer sentiment", "employment figures", "manufacturing data", "commodity prices"]
+    impacts = ["boost", "lift", "support", "pressure", "weigh on", "drag down"]
+    timeframes = ["today", "in early trading", "in late trading", "this morning", "this afternoon", "in volatile trading"]
+    futures = ["continue in the short term", "reverse in coming sessions", "stabilize as markets digest the news",
+               "depend on upcoming economic data", "be closely watched by investors"]
+    
+    sectors = ["Technology", "Financial", "Healthcare", "Energy", "Industrial", "Consumer", "Utility", "Communication"]
+    movements = ["higher", "gains", "advances", "rally", "decline", "losses", "lower"]
+    news_events = ["positive earnings reports", "new product announcements", "regulatory approvals", 
+                  "merger activity", "analyst upgrades", "economic data releases"]
+    
+    trades = ["trades higher", "moves upward", "edges higher", "trades lower", "moves downward", "stabilizes"]
+    surprises = ["beats", "exceeds", "falls short of", "disappoints", "matches", "comes in line with"]
+    compareds = ["came in stronger than", "were weaker than", "matched", "surprised to the upside of", "disappointed relative to"]
+    trade_actions = ["rise", "gain", "advance", "fall", "decline", "drift lower", "trade in a tight range"]
+    outlooks = ["further volatility", "stabilization", "careful positioning ahead of key data", "sector rotation"]
+    
+    closes = ["finishes higher", "closes lower", "ends mixed", "finishes flat", "closes up", "ends down"]
+    conditions = ["uncertainty", "optimism", "concerns", "volatility", "recovery hopes", "recession fears"]
+    volatilitys = ["heightened volatility", "cautious trading", "strong momentum", "mixed sentiment", "sector rotation"]
+    closings = ["finishing in positive territory", "ending the session lower", "closing mixed", "recovering from early losses"]
+    factor1s = ["interest rate decisions", "inflation concerns", "economic data", "earnings season", "geopolitical events"]
+    factor2s = ["currency movements", "commodity price shifts", "investor sentiment", "technical factors", "liquidity conditions"]
+    
+    # Create mock news for each index
+    for index_symbol in indices_list:
+        index_name = indices_names.get(index_symbol, index_symbol)
+        
+        # Create 2-3 news items per index
+        for _ in range(random.randint(2, 3)):
+            template = random.choice(news_templates)
+            sentiment = template["sentiment"]
+            
+            # Ensure direction matches sentiment for first template
+            if "direction" in template["title"]:
+                direction = random.choice([d for d in directions if (d in positive_directions) == (sentiment == "positive")])
+                value = random.choice(values)
+                factor = random.choice(factors)
+                impact = random.choice([i for i in impacts if (i in ["boost", "lift", "support"]) == (sentiment == "positive")])
+                timeframe = random.choice(timeframes)
+                future = random.choice(futures)
+                
+                title = template["title"].format(index=index_name, direction=direction, value=value, factor=factor, impact=impact)
+                summary = template["summary"].format(index=index_name, direction=direction, value=value, 
+                                                    timeframe=timeframe, factor=factor, future=future)
+            
+            # For sector-led template
+            elif "sector" in template["title"]:
+                sector = random.choice(sectors)
+                movement = random.choice([m for m in movements if (m in ["higher", "gains", "advances", "rally"]) == (sentiment == "positive")])
+                news_event = random.choice(news_events)
+                
+                title = template["title"].format(sector=sector, index=index_name, movement=movement)
+                summary = template["summary"].format(sector=sector, index=index_name, movement=movement, news_event=news_event)
+            
+            # For economic data template
+            elif "economic data" in template["title"]:
+                trade = random.choice(trades)
+                surprise = random.choice(surprises)
+                compared = random.choice(compareds)
+                trade_action = random.choice(trade_actions)
+                outlook = random.choice(outlooks)
+                
+                title = template["title"].format(index=index_name, trades=trade, surprises=surprise)
+                summary = template["summary"].format(compared=compared, index=index_name, trade_action=trade_action, outlook=outlook)
+            
+            # For market report template
+            else:
+                close = random.choice(closes)
+                condition = random.choice(conditions)
+                volatility = random.choice(volatilitys)
+                closing = random.choice(closings)
+                factor1 = random.choice(factor1s)
+                factor2 = random.choice(factor2s)
+                
+                title = template["title"].format(index=index_name, closes=close, condition=condition)
+                summary = template["summary"].format(volatility=volatility, index=index_name, closing=closing, 
+                                                    factor1=factor1, factor2=factor2)
+            
+            # Create timestamp (randomly distributed over the last 24 hours)
+            hours_ago = random.randint(0, 23)
+            minutes_ago = random.randint(0, 59)
+            timestamp = current_time - timedelta(hours=hours_ago, minutes=minutes_ago)
+            
+            # Set a score based on sentiment
+            if sentiment == "positive":
+                score = random.uniform(0.2, 0.8)
+            elif sentiment == "negative":
+                score = random.uniform(-0.8, -0.2)
+            else:
+                score = random.uniform(-0.2, 0.2)
+            
+            # Create the news item
+            news_item = {
+                "title": title,
+                "summary": summary,
+                "source": random.choice(["Yahoo Finance", "Market Watch", "Bloomberg", "CNBC", "Financial Times", "Reuters"]),
+                "timestamp": timestamp,
+                "unix_timestamp": int(timestamp.timestamp()),
+                "currency": index_name,
+                "currency_pairs": {index_name},
+                "sentiment": sentiment,
+                "score": score,
+                "url": f"https://example.com/mock-news/{index_symbol.replace('^', '')}/{int(timestamp.timestamp())}"
+            }
+            
+            mock_news.append(news_item)
+    
+    # Add some general market news
+    for _ in range(5):
+        is_positive = random.random() > 0.5
+        sentiment = "positive" if is_positive else "negative"
+        
+        templates = [
+            "Global markets {direction} as investors weigh {factor1} against {factor2}",
+            "Markets {move} {timeframe} amid {condition} and {event}",
+            "Investors {action} stocks as {indicator} {performance}"
+        ]
+        
+        template = random.choice(templates)
+        
+        if "direction" in template:
+            direction = random.choice(["rise", "advance", "climb higher"]) if is_positive else random.choice(["fall", "retreat", "move lower"])
+            factor1 = random.choice(factors)
+            factor2 = random.choice([f for f in factors if f != factor1])
+            title = template.format(direction=direction, factor1=factor1, factor2=factor2)
+            
+        elif "move" in template:
+            move = random.choice(["gain", "rally", "advance"]) if is_positive else random.choice(["decline", "fall", "retreat"])
+            timeframe = random.choice(["today", "in early trading", "across the board"])
+            condition = random.choice(conditions)
+            event = random.choice(news_events)
+            title = template.format(move=move, timeframe=timeframe, condition=condition, event=event)
+            
+        else:
+            action = random.choice(["buy", "favor", "embrace"]) if is_positive else random.choice(["sell", "avoid", "reduce exposure to"])
+            indicator = random.choice(["economic data", "corporate earnings", "central bank comments", "technical indicators"])
+            performance = random.choice(["surpasses expectations", "shows improving trends", "indicates growth"]) if is_positive else random.choice(["disappoints", "suggests weakness", "indicates slowdown"])
+            title = template.format(action=action, indicator=indicator, performance=performance)
+        
+        # Create summary
+        summary_templates = [
+            "Investors are closely monitoring developments in {area1} and {area2} as markets continue to {trend}.",
+            "Analysts point to {factor} as a key driver of market sentiment, with {outlook} for the coming {period}.",
+            "Trading volumes {volume} as {participants} {activity}, with particular focus on {sector} stocks."
+        ]
+        
+        summary_template = random.choice(summary_templates)
+        
+        if "area" in summary_template:
+            area1 = random.choice(["monetary policy", "fiscal spending", "corporate earnings", "international trade", "supply chains"])
+            area2 = random.choice(["inflation expectations", "growth forecasts", "interest rate paths", "geopolitical tensions", "commodity markets"])
+            trend = random.choice(["show resilience", "seek direction", "adjust to new data", "price in future expectations", "respond to mixed signals"])
+            summary = summary_template.format(area1=area1, area2=area2, trend=trend)
+            
+        elif "factor" in summary_template:
+            factor = random.choice(["recent economic data", "central bank communication", "earnings surprises", "global risk sentiment", "technical positioning"])
+            outlook = random.choice(["cautious expectations", "optimistic forecasts", "mixed projections", "revised estimates", "continued uncertainty"])
+            period = random.choice(["weeks", "months", "quarter", "reporting season", "economic cycle"])
+            summary = summary_template.format(factor=factor, outlook=outlook, period=period)
+            
+        else:
+            volume = random.choice(["increased", "remained elevated", "were mixed", "fell below average", "reflected caution"])
+            participants = random.choice(["institutional investors", "retail traders", "hedge funds", "foreign investors", "market makers"])
+            activity = random.choice(["repositioned portfolios", "adjusted exposure", "evaluated opportunities", "reassessed risks", "took profits"])
+            sector = random.choice(sectors)
+            summary = summary_template.format(volume=volume, participants=participants, activity=activity, sector=sector)
+        
+        # Create timestamp
+        hours_ago = random.randint(0, 12)
+        minutes_ago = random.randint(0, 59)
+        timestamp = current_time - timedelta(hours=hours_ago, minutes=minutes_ago)
+        
+        # Set a score based on sentiment
+        if sentiment == "positive":
+            score = random.uniform(0.2, 0.8)
+        elif sentiment == "negative":
+            score = random.uniform(-0.8, -0.2)
+        else:
+            score = random.uniform(-0.2, 0.2)
+        
+        # Create the news item for general market
+        news_item = {
+            "title": title,
+            "summary": summary,
+            "source": random.choice(["Yahoo Finance", "Market Watch", "Bloomberg", "CNBC", "Financial Times", "Reuters"]),
+            "timestamp": timestamp,
+            "unix_timestamp": int(timestamp.timestamp()),
+            "currency": "Market",  # Use Market as the currency for general market news
+            "currency_pairs": {"Market"},
+            "sentiment": sentiment,
+            "score": score,
+            "url": f"https://example.com/mock-news/market/{int(timestamp.timestamp())}"
+        }
+        
+        mock_news.append(news_item)
+    
+    # Sort by timestamp, newest first
+    mock_news.sort(key=lambda x: x["timestamp"], reverse=True)
+    
+    return mock_news
+
+
+def fetch_indices_news(indices_list=None, use_mock_fallback=True, force=False):
+    """Fetch news for indices, with fallback to mock data."""
+    
+    # Check if we need to refresh at all
+    if not force and 'last_indices_news_fetch' in st.session_state and st.session_state.last_indices_news_fetch:
+        # Don't refresh if it's been less than 60 seconds since last refresh
+        seconds_since_refresh = (datetime.now() - st.session_state.last_indices_news_fetch).total_seconds()
+        if seconds_since_refresh < 60:
+            if 'show_debug' in st.session_state and st.session_state.show_debug:
+                st.info(f"Skipping indices news refresh (last refresh {seconds_since_refresh:.0f}s ago)")
+            if 'indices_news' in st.session_state and st.session_state.indices_news:
+                return st.session_state.indices_news
+    
+    # Get list of indices from subscriptions
+    if indices_list is None and 'subscriptions' in st.session_state:
+        indices_list = [sub["base"] for sub in st.session_state.subscriptions 
+                      if sub["base"].startswith('^') or sub["base"] in indices]
+    
+    if not indices_list:
+        indices_list = ['^DJI', '^GSPC', '^IXIC', '^FTSE', '^GDAXI', '^FCHI', '^N225']
+    
+    # Initialize debug log
+    if 'debug_log' not in st.session_state or not isinstance(st.session_state.debug_log, list):
+        st.session_state.debug_log = []
+    
+    st.session_state.debug_log.append(f"Attempting to fetch news for {len(indices_list)} indices")
+    
+    try:
+        with st.spinner("Fetching latest indices news..."):
+            news_items = scrape_indices_news(indices_list, debug_log=st.session_state.debug_log)
+            
+            if news_items:
+                add_notification(f"Successfully fetched {len(news_items)} indices news items", "success")
+                st.session_state.last_indices_news_fetch = datetime.now()
+                st.session_state.indices_news = news_items
+                return news_items
+            else:
+                st.session_state.debug_log.append("No indices news items found")
+    except Exception as e:
+        if isinstance(st.session_state.debug_log, list):
+            st.session_state.debug_log.append(f"Error fetching indices news: {str(e)}")
+        add_notification(f"Error fetching indices news: {str(e)}", "error")
+    
+    if use_mock_fallback:
+        add_notification("Using mock indices news data as fallback", "info")
+        mock_news = create_mock_indices_news(indices_list)
+        st.session_state.indices_news = mock_news
+        st.session_state.last_indices_news_fetch = datetime.now()
+        return mock_news
+    
+    if 'indices_news' in st.session_state and st.session_state.indices_news:
+        return st.session_state.indices_news
+    
+    return []
 
 def analyze_news_sentiment(news_items, folder="fx_news/scrapers/news/yahoo", api_key=None, delay_between_requests=1.0):
     """
@@ -383,12 +971,12 @@ def analyze_sentiment(text: str, mode: str = "textblob", api_key: str = None) ->
                         
         return sentiment_label, sentiment_score
 
-def format_currency_pair_for_yahoo(base: str, quote: str) -> str:
+def format_currency_pair_for_yahoo(base, quote):
     """
     Format currency pair for Yahoo Finance URL
     
     Args:
-        base: Base currency code (e.g., 'EUR', 'BTC')
+        base: Base currency code (e.g., 'EUR', 'BTC', '^DJI')
         quote: Quote currency code (e.g., 'USD', 'JPY')
         
     Returns:
@@ -396,6 +984,11 @@ def format_currency_pair_for_yahoo(base: str, quote: str) -> str:
     """
     base = base.upper()
     quote = quote.upper()
+    
+    # Handle indices (^DJI, ^GSPC, etc.)
+    if base.startswith('^'):
+        # Return encoded symbol for use in URLs
+        return base.replace('^', '%5E')
     
     # Handle cryptocurrencies (BTC-USD, ETH-USD, etc.)
     crypto_currencies = ['BTC', 'ETH', 'XRP', 'LTC', 'BCH', 'ADA', 'DOT', 'LINK', 'XLM', 'DOGE', 'SOL']
@@ -885,7 +1478,12 @@ def scrape_yahoo_finance_news(
         try:
             # Format currency pair for Yahoo Finance URL
             yahoo_symbol = format_currency_pair_for_yahoo(base, quote)
-            symbol = f"{base}_{quote}"
+            if base.startswith('^'):
+                # For indices, use a more file-system friendly naming
+                symbol = f"{base.replace('^', '')}"
+            else:
+                # Your normal symbol formatting
+                symbol = f"{base}_{quote}"
             
             # Get the latest timestamp for this currency pair
             latest_timestamp = get_latest_timestamp(news_folder, symbol)
@@ -899,7 +1497,13 @@ def scrape_yahoo_finance_news(
             logger.info(f"Scraping {base}/{quote} with latest timestamp: {latest_timestamp} ({latest_date})")
             debug_log.append(f"Scraping {base}/{quote} with latest timestamp: {latest_timestamp} ({latest_date})")
             
-            url = f"https://finance.yahoo.com/quote/{yahoo_symbol}/news?{random.random()}"
+            if base.startswith('^'):
+                # For indices, make sure we're using the right URL pattern
+                # The yahoo_symbol already has ^ replaced with %5E from our updated function
+                url = f"https://finance.yahoo.com/quote/{yahoo_symbol}/news?{random.random()}"
+            else:
+                # This is your normal URL construction
+                url = f"https://finance.yahoo.com/quote/{yahoo_symbol}/news?{random.random()}"
 
             # Check if this URL is allowed by robots.txt
             if respect_robots_txt and robot_parser and not robot_parser.is_path_allowed(url):
@@ -1150,7 +1754,8 @@ def create_mock_news(currencies=None):
 
 # Example usage
 if __name__ == "__main__":
-    currency_pairs = [("EUR", "USD"), ("GBP", "USD"), ("USD", "JPY")]
+ #   currency_pairs = [("EUR", "USD"), ("GBP", "USD"), ("USD", "JPY")]
+    currency_pairs = [("^DJI", "USD"), ("GBP", "USD"), ("USD", "JPY")]    
     news = scrape_yahoo_finance_news(currency_pairs, max_articles=10)
     print(f"Total news articles: {len(news)}")
     for article in news[:5]:

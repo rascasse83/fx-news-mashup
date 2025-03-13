@@ -1,0 +1,46 @@
+# How major US stock indexes fared Wednesday, 3/12/2025
+
+Source: https://finance.yahoo.com/news/major-us-stock-indexes-fared-202218518.html
+Timestamp: 1741810938 (2025-03-12T20:22:18)
+
+SUMMARY: U.S. stocks mostly rose after getting some relief from an encouraging inflation update. But even on a rare up day for the market, President Donald Trump’s trade war still knocked stocks around. The S&P 500 climbed 0.5% Wednesday after skidding between an even bigger early gain and a later loss. The Dow Jones Industrial Average also pinballed between gains and losses, and wound up 0.2% lower. The Nasdaq composite added 1.2%. AI stocks led the way, but U.S. companies targeted by tariffs announced ...
+
+U.S. stocks mostly rose after getting some relief from an encouraging inflation update. But even on a rare up day for the market, President Donald Trump’s trade war still knocked stocks around.
+
+The S&P 500 climbed 0.5% Wednesday after skidding between an even bigger early gain and a later loss. The Dow Jones Industrial Average also pinballed between gains and losses, and wound up 0.2% lower. The Nasdaq composite added 1.2%.
+
+AI stocks led the way, but U.S. companies targeted by tariffs announced by Europe and others weighed on the market. Harley-Davidson and whiskey maker Brown-Forman fell.
+
+On Wednesday:
+
+The S&P 500 rose 27.23 points, or 0.5%, to 5,599.30.
+
+The Dow Jones Industrial Average fell 82.55 points, or 0.2%, to 41,350.93.
+
+The Nasdaq composite rose 212.35 points, or 1.2%, to 17,648.45.
+
+The Russell 2000 index of smaller companies rose 2.87 points, or 0.1%, to 2,026.47.
+
+For the week:
+
+The S&P 500 is down 170.90 points, or 3%.
+
+The Dow is down 1,450.79 points, or 3.4%.
+
+The Nasdaq is down 547.77 points, or 3%.
+
+The Russell 2000 is down 49.02 points, or 2.4%.
+
+For the year:
+
+The S&P 500 is down 282.33 points, or 4.8%.
+
+The Dow is down 1,193.29 points, or 2.8%.
+
+The Nasdaq is down 1,662.34 points, or 8.6%.
+
+The Russell 2000 is down 203.69 points, or 9.1%.
+
+---
+SENTIMENT: positive
+SCORE: 0.48

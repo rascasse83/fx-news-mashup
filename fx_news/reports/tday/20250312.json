@@ -1,0 +1,91 @@
+{
+  "market_summary": {
+    "date": "2025-03-12",
+    "overview": "US tariffs, inflation, and recession fears are driving global trade tensions, central bank adjustments, and market uncertainty.",
+    "key_factors": {
+      "US_trade_tariffs": {
+        "impact": "Ignited global trade tensions, affecting numerous countries including Canada, which has prompted retaliatory measures.",
+        "details": "The European Union has responded with countermeasures valued at 26 billion Euros. Central banks, such as the Bank of Canada, are factoring these US trade policies into their monetary decisions, fearing prolonged trade conflicts could severely impact domestic GDP."
+      },
+      "central_bank_policies": {
+        "Federal_Reserve": {
+          "focus": "Monitoring US Consumer Price Index (CPI) data for potential inflation trends.",
+          "expectations": "Potential interest rate cuts are being closely watched."
+        },
+        "Bank_of_Canada": {
+          "focus": "Anticipated to continue interest rate cuts due to concerns over US tariffs impacting the Canadian economy.",
+          "details": "Canadian inflation rate has risen to 1.9% annually, with core CPI at 2.1%."
+        },
+        "Bank_of_England": {
+          "focus": "Expected to maintain current interest rates, emphasizing a gradual and cautious approach to monetary easing."
+        }
+      }
+    },
+    "market_uncertainty": {
+      "drivers": [
+        "US tariff policies",
+        "Inflation concerns",
+        "Potential economic slowdown"
+      ],
+      "impact": "Heightened market uncertainty, with investors revising economic projections for 2025. The value of the US Dollar is experiencing fluctuations in response to inflation data and the overall economic outlook."
+    },
+    "economic_indicators": {
+      "Consumer_Price_Index": {
+        "importance": "Key indicator of inflation, influencing the Federal Reserve’s interest rate decisions and has a major impact on the US dollar.",
+        "details": "Monthly and yearly CPI data are crucial for market sentiment and the US dollar’s value."
+      },
+      "Producer_Price_Index": {
+        "importance": "Leading indicator of consumer inflation, as producer prices often get passed on to consumers.",
+        "details": "Core PPI measures the change in selling prices received by domestic producers."
+      }
+    },
+    "top_economic_events": [
+      {
+        "event": "ECB’s President Lagarde speech",
+        "importance": "HIGH Impact, EUR",
+        "details": "Speeches by central bank presidents can significantly impact market sentiment and the Euro’s value."
+      },
+      {
+        "event": "Consumer Price Index (MoM)",
+        "importance": "HIGH Impact, USD",
+        "details": "Measures the monthly change in the price of goods and services. CPI data is a key indicator of inflation."
+      },
+      {
+        "event": "Consumer Price Index (YoY)",
+        "importance": "HIGH Impact, USD",
+        "details": "Shows the yearly change in prices. This is another critical inflation metric that is watched closely by markets."
+      },
+      {
+        "event": "Consumer Price Index ex Food & Energy (MoM)",
+        "importance": "HIGH Impact, USD",
+        "details": "Core CPI, excluding volatile food and energy prices, provides a clearer picture of underlying inflation trends."
+      },
+      {
+        "event": "Consumer Price Index ex Food & Energy (YoY)",
+        "importance": "HIGH Impact, USD",
+        "details": "The year over year core CPI is a very important inflation marker for the long-term health of the US economy."
+      },
+      {
+        "event": "BoC Interest Rate Decision",
+        "importance": "HIGH Impact, CAD",
+        "details": "Directly impacts the Canadian dollar and the country’s economic stability. Changes in interest rates affect borrowing costs, investment, and overall economic activity."
+      },
+      {
+        "event": "BoC Monetary Policy Statement",
+        "importance": "HIGH Impact, CAD",
+        "details": "Provides insights into the Bank of Canada’s economic outlook and future policy intentions. It can significantly influence market expectations."
+      },
+      {
+        "event": "BoC Press Conference",
+        "importance": "HIGH Impact, CAD",
+        "details": "Following the rate decision and statement, the press conference allows the BoC to further explain its decisions and address market concerns. This event can cause significant volatility in the Canadian dollar."
+      }
+    ],
+    "safe_haven_assets": {
+      "gold": {
+        "status": "Increasingly viewed as a safe-haven asset amidst market uncertainty.",
+        "details": "Gold is gaining attention as a hedge against inflation and economic volatility."
+      }
+    }
+  }
+}

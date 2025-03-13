@@ -27,7 +27,7 @@ def format_currency_pair_for_yahoo(base, quote):
     Format currency pair for Yahoo Finance URL
     
     Args:
-        base: Base currency code (e.g., 'EUR', 'BTC')
+        base: Base currency code (e.g., 'EUR', 'BTC', '^DJI')
         quote: Quote currency code (e.g., 'USD', 'JPY')
         
     Returns:
@@ -35,6 +35,10 @@ def format_currency_pair_for_yahoo(base, quote):
     """
     base = base.upper()
     quote = quote.upper()
+    
+    # Handle indices (^DJI, ^GSPC, etc.)
+    if base.startswith('^'):
+        return base
     
     # Handle cryptocurrencies (BTC-USD, ETH-USD, etc.)
     crypto_currencies = ['BTC', 'ETH', 'XRP', 'LTC', 'BCH', 'ADA', 'DOT', 'LINK', 'XLM', 'DOGE', 'SOL']
@@ -291,7 +295,7 @@ if __name__ == "__main__":
     
     # Test with historical data
     logger.info("Testing historical rate fetching...")
-    df = fetch_historical_rates('EUR', 'USD', '1d', '5m')
+    df = fetch_historical_rates('^DJI', 'USD', '1d', '5m')
     if df is not None:
         logger.info(f"Retrieved {len(df)} data points")
         logger.info(f"Sample data:\n{df.head()}")  # Display the first few rows

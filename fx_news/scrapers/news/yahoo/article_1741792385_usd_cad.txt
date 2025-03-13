@@ -1,0 +1,12 @@
+# Bank of Canada Cuts Rates as Economy Faces ‘New Crisis’
+
+Source: https://finance.yahoo.com/m/eeb9401d-76d3-3601-836f-adec482d967e/bank-of-canada-cuts-rates-as.html
+Timestamp: 1741792385 (2025-03-12T15:13:05)
+
+SUMMARY: The Bank of Canada cut its main interest rate by a quarter point to help offset weaker consumer spending and business investment stemming from trade-policy uncertainty. "We're now facing a new crisis," said Bank of Canada Gov. Tiff Macklem, according to remarks he is set to deliver at a press conference. Macklem said the central bank faces a tricky balancing act in weighing up the damage from trade tensions versus the potential for an acceleration in inflation.
+
+The Bank of Canada cut its main interest rate by a quarter point to help offset weaker consumer spending and business investment stemming from trade-policy uncertainty. "We're now facing a new crisis," said Bank of Canada Gov. Tiff Macklem, according to remarks he is set to deliver at a press conference. Macklem said the central bank faces a tricky balancing act in weighing up the damage from trade tensions versus the potential for an acceleration in inflation.
+
+---
+SENTIMENT: negative
+SCORE: -0.4
