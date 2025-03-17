@@ -9,15 +9,17 @@ import plotly.express as px
 from textblob import TextBlob
 import json
 import re
+import logging
 import glob
 from bs4 import BeautifulSoup
 import os
 import random
-from fx_news.scrapers.news_scraper import scrape_yahoo_finance_news, create_mock_news, analyze_news_sentiment
+from fx_news.scrapers.news_scraper import scrape_yahoo_finance_news, create_mock_news, analyze_news_sentiment, load_news_from_files
 from fx_news.apis.rates_fetch import fetch_currency_rates, update_rates_with_variation, get_mock_currency_rates
-from fx_news.scrapers.rates_scraper import scrape_yahoo_finance_rates, fetch_historical_rates
+from fx_news.scrapers.rates_scraper import scrape_yahoo_finance_rates, display_combined_charts
 from fx_news.scrapers.economic_calendar_scraper import scrape_investing_economic_calendar, create_mock_economic_events, get_economic_events_for_currency
 from fx_news.scrapers.coinmarketcap_scraper import fetch_crypto_events
+from fx_news.predict.predictions import add_forecast_to_dashboard, add_forecast_comparison_card, add_darts_forecast_tab
 from streamlit_autorefresh import st_autorefresh
 import plotly.graph_objects as go
 from fx_news.scrapers.myfxbook_scraper import (
@@ -29,7 +31,13 @@ from fx_news.scrapers.myfxbook_scraper import (
 )
 # import arrow
 
-
+# Set up logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', 
+    level=logging.INFO
+)
+logger = logging.getLogger("Market Monitor page")
+logger.setLevel(logging.INFO)  # Set to INFO for production, DEBUG for development
 
 # Configure page
 st.set_page_config(
@@ -275,6 +283,21 @@ if 'next_news_refresh_time' not in st.session_state:
 if 'refresh_news_clicked' not in st.session_state:
     st.session_state.refresh_news_clicked = False
 
+if 'refresh_news_clicked' in st.session_state and st.session_state.refresh_news_clicked:
+    # Reset the flag
+    st.session_state.refresh_news_clicked = False
+    st.rerun()
+
+if 'initial_news_loaded' not in st.session_state:
+    st.session_state.initial_news_loaded = False
+
+# Initialize the session state for economic events
+if 'economic_events' not in st.session_state:
+    st.session_state.economic_events = None
+
+if 'economic_events_last_fetch' not in st.session_state:
+    st.session_state.economic_events_last_fetch = None
+
 # Update the currency mappings based on market type
 # This section should come after the session state initialization
 if st.session_state.market_type == 'FX':
@@ -286,6 +309,8 @@ elif st.session_state.market_type == 'Crypto':
 else:  # Indices
     available_currencies = indices
 
+if 'ui_refresh_key' not in st.session_state:
+    st.session_state.ui_refresh_key = 0
 
 # Initialize the session state for crypto events if not yet done
 if 'crypto_events' not in st.session_state:
@@ -331,510 +356,227 @@ def setup_auto_refresh():
             st.session_state.last_sentiment_auto_refresh_time = current_time
             update_all_sentiment_data(force=True)
 
-
-
-# def display_rate_info(sub, index):
-#     """Display rate information for a currency pair"""
-#     # Top row with currency pair and remove button
-#     col1, col2 = st.columns([3, 1])
-#     with col1:
-#         st.markdown(f"### {sub['base']}/{sub['quote']}")
-#     with col2:
-#         key_base = f"{sub['base']}_{sub['quote']}_{index}"
-#         if st.button("Remove", key=f"remove_{key_base}"):
-#             st.session_state.subscriptions.pop(index)
-#             add_notification(f"Removed subscription: {sub['base']}/{sub['quote']}", "system")
-#             st.rerun()
-
-#     # Rate information
-#     if sub["current_rate"] is not None:
-#         # Format the current rate with appropriate decimal places
-#         if sub["current_rate"] < 0.01:
-#             formatted_rate = f"{sub['current_rate']:.6f}"
-#         elif sub["current_rate"] < 1:
-#             formatted_rate = f"{sub['current_rate']:.4f}"
-#         else:
-#             formatted_rate = f"{sub['current_rate']:.4f}"
-        
-#         # Format the previous close rate if available
-#         previous_rate_text = "N/A"
-#         if sub.get("previous_close") is not None:
-#             prev_rate = sub["previous_close"]
-#             if prev_rate < 0.01:
-#                 previous_rate_text = f"{prev_rate:.6f}"
-#             elif prev_rate < 1:
-#                 previous_rate_text = f"{prev_rate:.4f}"
-#             else:
-#                 previous_rate_text = f"{prev_rate:.4f}"
-
-#         # Determine rate direction and color
-#         direction_arrow = ""
-#         color = "gray"
-#         direction_class = "rate-neutral"
-        
-#         # Use previous_close if available, otherwise fall back to last_rate
-#         reference_rate = None
-#         if sub.get("previous_close") is not None:
-#             reference_rate = sub["previous_close"]
-#         elif sub.get("last_rate") is not None:
-#             reference_rate = sub["last_rate"]
-            
-#         if reference_rate is not None:
-#             if sub["current_rate"] > reference_rate:
-#                 direction_arrow = "▲"
-#                 color = "green"
-#                 direction_class = "rate-up"
-#             elif sub["current_rate"] < reference_rate:
-#                 direction_arrow = "▼"
-#                 color = "red"
-#                 direction_class = "rate-down"
-
-#         # Add rate information to HTML
-#         html = f"""
-#         <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-#             <span>Current Rate:</span>
-#             <span class="{direction_class}">{formatted_rate} {direction_arrow}</span>
-#         </div>
-#         <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-#             <span>Previous Close:</span>
-#             <span style="color: #6c757d;">{previous_rate_text}</span>
-#         </div>
-#         """
-#         st.markdown(html, unsafe_allow_html=True)
-
-#         # Add percent change if available
-#         if reference_rate is not None:
-#             percent_change = ((sub["current_rate"] - reference_rate) / reference_rate) * 100
-#             change_color = "green" if percent_change > 0 else "red" if percent_change < 0 else "gray"
-#             sign = "+" if percent_change > 0 else ""
-#             st.markdown(f"**Change:** <span style='color:{change_color};font-weight:bold;'>{sign}{percent_change:.4f}%</span>", unsafe_allow_html=True)
-#     else:
-#         st.info("Loading rate data...")
-
-#     # Threshold slider
-#     new_threshold = st.slider(
-#         "Alert threshold (%)",
-#         min_value=0.1,
-#         max_value=5.0,
-#         value=float(sub["threshold"]),
-#         step=0.1,
-#         key=f"threshold_slider_{key_base}"
-#     )
-
-#     if new_threshold != sub["threshold"]:
-#         st.session_state.subscriptions[index]["threshold"] = new_threshold
-#         add_notification(f"Updated threshold for {sub['base']}/{sub['quote']} to {new_threshold}%", "system")
-
-# Updated function to blend historical data with real-time rates
-def blended_display_rate_history(sub):
+def display_currency_pair(sub):
     """
-    Display rate history blending Yahoo Finance historical data with real-time updates
+    Display a currency pair card with real-time data, charts, and forecasts
     
     Args:
         sub: Subscription dictionary containing currency pair information
     """
-    import plotly.express as px
-    import plotly.graph_objects as go
-    import pandas as pd
-    from datetime import datetime, timedelta
-    import streamlit as st
-    
-    # First check if we have cached historical data for this pair
+    # Create a unique key for this subscription
     pair_key = f"{sub['base'].lower()}_{sub['quote'].lower()}"
+    key_base = f"{sub['base']}_{sub['quote']}_{random.randint(1000, 9999)}"
     
-    # Initialize the historical data cache if it doesn't exist
-    if 'historical_rate_cache' not in st.session_state:
-        st.session_state.historical_rate_cache = {}
+    # Calculate percentage change to show in the header
+    percent_change_text = ""
+    if sub["current_rate"] is not None:
+        # Determine reference rate
+        reference_rate = None
+        if sub.get("previous_close") is not None:
+            reference_rate = sub["previous_close"]
+        elif sub.get("last_rate") is not None:
+            reference_rate = sub["last_rate"]
+            
+        # Calculate percent change if reference rate is available
+        if reference_rate is not None:
+            percent_change = ((sub["current_rate"] - reference_rate) / reference_rate) * 100
+            sign = "+" if percent_change > 0 else ""
+            percent_change_text = f" {sign}{percent_change:.2f}%"
     
-    # Check if we need to fetch new data
-    should_fetch = False
-    if pair_key not in st.session_state.historical_rate_cache:
-        should_fetch = True
-    else:
-        # Check if cache is older than 15 minutes
-        cached_data = st.session_state.historical_rate_cache[pair_key]
-        if 'last_fetch_time' in cached_data:
-            if (datetime.now() - cached_data['last_fetch_time']).total_seconds() > 900:  # 15 minutes
-                should_fetch = True
-        else:
-            should_fetch = True
-    
-    # Fetch new historical data if needed
-    if should_fetch:
-        with st.spinner(f"Fetching historical data for {sub['base']}/{sub['quote']}..."):
-            # Determine appropriate range and interval based on market type
-            if st.session_state.market_type == 'Crypto':
-                # Crypto markets are more volatile, use shorter timeframe
-                range_val = "1d"
-                interval = "5m"
-            else:
-                # FX markets, use slightly longer timeframe
-                range_val = "5d"
-                interval = "15m"
-            
-            # Fetch the historical data
-            df = fetch_historical_rates(sub['base'], sub['quote'], range_val, interval)
-            
-            if df is not None and not df.empty:
-                # Cache the data
-                st.session_state.historical_rate_cache[pair_key] = {
-                    'data': df,
-                    'last_fetch_time': datetime.now()
-                }
-    
-    # Get real-time rate history from session state
-    realtime_df = None
-    if pair_key in st.session_state.rate_history and len(st.session_state.rate_history[pair_key]) > 1:
-        realtime_df = pd.DataFrame(st.session_state.rate_history[pair_key])
-    
-    # Use historical data from cache if available
-    if pair_key in st.session_state.historical_rate_cache:
-        historical_df = st.session_state.historical_rate_cache[pair_key]['data']
+    # Create a container for the card with a border and padding
+    with st.container():
+        st.markdown("""
+        <style>
+        .header-container {
+            background-color: #1E1E1E;
+            border-radius: 5px 5px 0 0;
+            padding: 10px 15px;
+            margin-bottom: 0;
+            border: 1px solid #333;
+            border-bottom: none;
+        }
+        </style>
+        """, unsafe_allow_html=True)
         
-        # Now blend historical and real-time data
-        blended_df = historical_df.copy()
+        # Create a visually distinct header
+        st.markdown('<div class="header-container">', unsafe_allow_html=True)
+        header_cols = st.columns([2, 1, 3])
         
-        # If we have real-time data, filter and append it
-        if realtime_df is not None and not realtime_df.empty:
-            # Find the last timestamp in historical data
-            last_historical_time = historical_df['timestamp'].max()
-            
-            # Filter real-time data to only include points after the historical data
-            new_realtime_df = realtime_df[realtime_df['timestamp'] > last_historical_time]
-            
-            # If we have new real-time data points, append them
-            if not new_realtime_df.empty:
-                blended_df = pd.concat([blended_df, new_realtime_df], ignore_index=True)
+        with header_cols[0]:
+            # Currency pair
+            st.markdown(f"**{sub['base']}/{sub['quote']}**")
         
-        # Create dark-themed figure
-        fig = go.Figure()
+        with header_cols[1]:
+            # Percentage change with color
+            if percent_change_text:
+                color = "green" if "+" in percent_change_text else "red" if "-" in percent_change_text else "gray"
+                st.markdown(f"<span style='color:{color};font-weight:bold;'>{percent_change_text}</span>", unsafe_allow_html=True)
         
-        # Add historical data trace
-        fig.add_trace(go.Scatter(
-            x=historical_df['timestamp'],
-            y=historical_df['rate'],
-            mode='lines',
-            name='Historical',
-            line=dict(color='#4D9BF5', width=2),
-            hovertemplate='%{x}<br>Rate: %{y:.4f}<extra></extra>'
-        ))
-        
-        # Add real-time data trace if available
-        if realtime_df is not None and not realtime_df.empty:
-            new_realtime_df = realtime_df[realtime_df['timestamp'] > last_historical_time]
-            if not new_realtime_df.empty:
-                fig.add_trace(go.Scatter(
-                    x=new_realtime_df['timestamp'],
-                    y=new_realtime_df['rate'],
-                    mode='lines',
-                    name='Real-time',
-                    line=dict(color='#00FF00', width=2.5),  # Brighter green for real-time data
-                    hovertemplate='%{x}<br>Rate: %{y:.4f}<extra></extra>'
-                ))
-        
-        # Add chart title
-        fig.update_layout(
-            title=f"{sub['base']}/{sub['quote']} Rate History",
-            title_font_color="#FFFFFF"
-        )
-        
-        # Calculate range values for better visualization
-        min_rate = blended_df['rate'].min()
-        max_rate = blended_df['rate'].max()
-        rate_range = max_rate - min_rate
-        
-        # If range is very small, create a custom range to make changes more visible
-        if rate_range < 0.001:
-            # Use a small fixed range around the mean
-            mean_rate = blended_df['rate'].mean()
-            fig.update_yaxes(range=[mean_rate * 0.9995, mean_rate * 1.0005])
-        elif rate_range < 0.01:
-            # Add some padding to min/max values to make changes more visible
-            fig.update_yaxes(range=[min_rate * 0.999, max_rate * 1.001])
-        
-        # Add current price line
-        if 'current_rate' in sub and sub['current_rate'] is not None:
-            fig.add_hline(
-                y=sub['current_rate'], 
-                line_dash="dash", 
-                line_color="green",
-                annotation_text="Current",
-                annotation_position="top right"
-            )
-        
-        # Add previous close line
-        if 'previous_close' in sub and sub['previous_close'] is not None:
-            fig.add_hline(
-                y=sub['previous_close'], 
-                line_dash="dot", 
-                line_color="red",
-                annotation_text="Prev Close",
-                annotation_position="bottom right"
-            )
-        
-        # Apply dark theme styling
-        fig.update_layout(
-                height=300,
-                margin=dict(l=0, r=0, t=40, b=0),
-                paper_bgcolor="#121212",  # Dark background
-                plot_bgcolor="#121212",   # Dark background
-                font=dict(color="#FFFFFF"),  # Pure white text for better visibility
-                xaxis=dict(
-                    gridcolor="#333333",  # Darker grid
-                    tickcolor="#FFFFFF",  # Pure white tick marks
-                    linecolor="#555555",  # Medium gray axis line
-                    tickfont=dict(color="#FFFFFF", size=12),  # Brighter, larger tick labels
-                    title_font=dict(color="#FFFFFF", size=14)  # Brighter, larger axis title
-                ),
-                yaxis=dict(
-                    gridcolor="#333333",  # Darker grid
-                    tickcolor="#FFFFFF",  # Pure white tick marks
-                    linecolor="#555555",  # Medium gray axis line
-                    tickfont=dict(color="#FFFFFF", size=12),  # Brighter, larger tick labels
-                    title_font=dict(color="#FFFFFF", size=14)  # Brighter, larger axis title
-                ),
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="right",
-                    x=1,
-                    font=dict(color="#FFFFFF", size=12),  # White legend text
-                    bgcolor="rgba(18, 18, 18, 0.5)",  # Semi-transparent background
-                    bordercolor="#555555"  # Medium gray border
-                )
-            )
-        
-        # Add high/low markers for today
-        # Filter for today's data
-        today = datetime.now().date()
-        today_data = blended_df[blended_df['timestamp'].dt.date == today]
-        
-        if not today_data.empty:
-            today_high = today_data['rate'].max()
-            today_low = today_data['rate'].min()
-            
-            # Add high marker
-            fig.add_trace(go.Scatter(
-                x=[today_data.loc[today_data['rate'].idxmax(), 'timestamp']],
-                y=[today_high],
-                mode='markers+text',
-                marker=dict(color='#4CAF50', size=10, symbol='triangle-up'),
-                text=['High'],
-                textposition='top center',
-                hoverinfo='text+y',
-                name='Today\'s High',
-                textfont=dict(color='#4CAF50')
-            ))
-            
-            # Add low marker
-            fig.add_trace(go.Scatter(
-                x=[today_data.loc[today_data['rate'].idxmin(), 'timestamp']],
-                y=[today_low],
-                mode='markers+text',
-                marker=dict(color='#F44336', size=10, symbol='triangle-down'),
-                text=['Low'],
-                textposition='bottom center',
-                hoverinfo='text+y',
-                name='Today\'s Low',
-                textfont=dict(color='#F44336')
-            ))
-
-            # Add the FX-Pulsar watermark here
-            fig.add_annotation(
-                text="FX-PULSAR",
-                x=0.95,  # Position at 95% from the left
-                y=0.10,  # Position at 10% from the bottom
-                xref="paper",
-                yref="paper",
-                showarrow=False,
-                font=dict(
-                    family="Arial",
-                    size=28,
-                    color="rgba(255, 255, 255, 0.15)"  # Semi-transparent white
-                ),
-                align="right",
-                opacity=0.7,
-                textangle=0
-            )
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Add interesting statistics below the chart (same as in previous implementation)
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.markdown("### Today's Range")
-            if not today_data.empty:
-                today_high = today_data['rate'].max()
-                today_low = today_data['rate'].min()
-                today_range_pct = ((today_high - today_low) / today_low) * 100
-                st.markdown(f"""
-                <div style="background-color:#1E1E1E; padding:10px; border-radius:5px;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                        <span style="color:white;">High:</span>
-                        <span style="color:#4CAF50;">{today_high:.4f}</span>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                        <span style="color:white;">Low:</span>
-                        <span style="color:#F44336;">{today_low:.4f}</span>
-                    </div>
-                    <div style="display:flex; justify-content:space-between;">
-                        <span style="color:white;">Range:</span>
-                        <span style="color:white;">{today_range_pct:.2f}%</span>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.info("No data available for today")
-        
-        with col2:
-            st.markdown("### Volatility")
-            # Calculate volatility (standard deviation of returns)
-            if len(blended_df) > 1:
-                blended_df['return'] = blended_df['rate'].pct_change() * 100
-                recent_volatility = blended_df['return'].std()
-                
-                # Determine volatility level
-                if recent_volatility < 0.05:
-                    vol_level = "Very Low"
-                    color = "#9E9E9E"  # Gray
-                elif recent_volatility < 0.1:
-                    vol_level = "Low"
-                    color = "#4CAF50"  # Green
-                elif recent_volatility < 0.2:
-                    vol_level = "Moderate"
-                    color = "#FFC107"  # Amber
-                elif recent_volatility < 0.3:
-                    vol_level = "High"
-                    color = "#FF9800"  # Orange
-                else:
-                    vol_level = "Very High"
-                    color = "#F44336"  # Red
+        with header_cols[2]:
+            # Get sentiment data for FX pairs
+            if st.session_state.market_type == 'FX':
+                sentiment_data = get_sentiment_for_pair(sub['base'], sub['quote'])
+                if sentiment_data:
+                    long_pct = sentiment_data.get('long_percentage', 0)
+                    short_pct = sentiment_data.get('short_percentage', 0)
                     
-                st.markdown(f"""
-                <div style="background-color:#1E1E1E; padding:10px; border-radius:5px;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                        <span style="color:white;">Volatility:</span>
-                        <span style="color:{color};">{vol_level}</span>
+                    # Determine if bullish or bearish
+                    sentiment_label = "Bullish" if long_pct >= 50 else "Bearish"
+                    sentiment_color = "#4CAF50" if long_pct >= 50 else "#F44336"
+                    
+                    # Create a sentiment bar visualization with percentages
+                    st.markdown(f"""
+                    <div style="width:100%; display:flex; align-items:center; justify-content:flex-end;">
+                        <span style="color:#4CAF50; margin-right:5px; font-size:0.8em; font-weight:bold;">
+                            L:{long_pct}%
+                        </span>
+                        <span style="color:#F44336; margin-right:5px; font-size:0.8em; font-weight:bold;">
+                            S:{short_pct}%
+                        </span>
+                        <span style="color:{sentiment_color}; margin-right:5px; font-size:0.8em; font-weight:bold;">
+                            {sentiment_label}
+                        </span>
+                        <div style="width:80px; height:15px; background:#F44336; border-radius:3px; overflow:hidden;">
+                            <div style="width:{long_pct}%; height:100%; background-color:#4CAF50;"></div>
+                        </div>
                     </div>
-                    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                        <span style="color:white;">Std Dev:</span>
-                        <span style="color:white;">{recent_volatility:.4f}%</span>
-                    </div>
-                    <div style="display:flex; justify-content:space-between;">
-                        <span style="color:white;">Sample Points:</span>
-                        <span style="color:white;">{len(blended_df)}</span>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
+            elif st.session_state.market_type == 'Crypto':
+                # For crypto, add a placeholder or different visualization
+                pass
+                
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Actual expandable content
+        with st.expander("Details", expanded=not st.session_state.collapse_all_cards):
+            # Add tabs for Rate Info, Economic Calendar, Sentiment, and Forecasts
+            rate_tab, chart_tab, prophet_tab, darts_tab, calendar_tab, sentiment_tab = st.tabs([
+                "Rate Info", "Chart", "Prophet Forecast", "DARTS Forecast", "Economic Calendar", "Sentiment"
+            ])
+            
+            with rate_tab:
+                # Top row with remove button
+                col3, col4 = st.columns([3, 1])
+                with col4:
+                    if st.button("Remove", key=f"remove_{key_base}"):
+                        # Find the index of this subscription
+                        for i, s in enumerate(st.session_state.subscriptions):
+                            if s['base'] == sub['base'] and s['quote'] == sub['quote']:
+                                st.session_state.subscriptions.pop(i)
+                                add_notification(f"Removed subscription: {sub['base']}/{sub['quote']}", "system")
+                                st.rerun()
+                                break
 
-            else:
-                st.info("Insufficient data for volatility calculation")
-                
-        with col3:
-            st.markdown("### Trend Analysis")
-            # Simple trend analysis using rolling averages
-            if len(blended_df) > 20:
-                # Add simple moving averages
-                blended_df['SMA5'] = blended_df['rate'].rolling(window=5).mean()
-                blended_df['SMA20'] = blended_df['rate'].rolling(window=20).mean()
-                
-                # Determine trend based on SMA crossovers
-                latest_sma5 = blended_df['SMA5'].iloc[-1]
-                latest_sma20 = blended_df['SMA20'].iloc[-1]
-                
-                if latest_sma5 > latest_sma20:
-                    trend = "Bullish"
-                    color = "#4CAF50"  # Green
-                elif latest_sma5 < latest_sma20:
-                    trend = "Bearish"
-                    color = "#F44336"  # Red
+                # Rate information
+                if sub["current_rate"] is not None:
+                    # Format the current rate with appropriate decimal places
+                    if sub["current_rate"] < 0.01:
+                        formatted_rate = f"{sub['current_rate']:.6f}"
+                    elif sub["current_rate"] < 1:
+                        formatted_rate = f"{sub['current_rate']:.4f}"
+                    else:
+                        formatted_rate = f"{sub['current_rate']:.4f}"
+                    
+                    # Format the previous close rate if available
+                    previous_rate_text = "N/A"
+                    if sub.get("previous_close") is not None:
+                        prev_rate = sub["previous_close"]
+                        if prev_rate < 0.01:
+                            previous_rate_text = f"{prev_rate:.6f}"
+                        elif prev_rate < 1:
+                            previous_rate_text = f"{prev_rate:.4f}"
+                        else:
+                            previous_rate_text = f"{prev_rate:.4f}"
+
+                    # Determine rate direction and color
+                    direction_arrow = ""
+                    color = "gray"
+                    
+                    # Use previous_close if available, otherwise fall back to last_rate
+                    reference_rate = None
+                    if sub.get("previous_close") is not None:
+                        reference_rate = sub["previous_close"]
+                    elif sub.get("last_rate") is not None:
+                        reference_rate = sub["last_rate"]
+                        
+                    if reference_rate is not None:
+                        if sub["current_rate"] > reference_rate:
+                            direction_arrow = "▲"
+                            color = "green"
+                        elif sub["current_rate"] < reference_rate:
+                            direction_arrow = "▼"
+                            color = "red"
+
+                    # Add rate information to HTML
+                    html = f"""
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span>Current Rate:</span>
+                        <span style="color: {color};">{formatted_rate} {direction_arrow}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span>Previous Close:</span>
+                        <span style="color: #6c757d;">{previous_rate_text}</span>
+                    </div>
+                    """
+                    st.markdown(html, unsafe_allow_html=True)
+
+                    # Add percent change if available
+                    if reference_rate is not None:
+                        percent_change = ((sub["current_rate"] - reference_rate) / reference_rate) * 100
+                        change_color = "green" if percent_change > 0 else "red" if percent_change < 0 else "gray"
+                        sign = "+" if percent_change > 0 else ""
+                        st.markdown(f"**Change:** <span style='color:{change_color};font-weight:bold;'>{sign}{percent_change:.4f}%</span>", unsafe_allow_html=True)
                 else:
-                    trend = "Neutral"
-                    color = "#9E9E9E"  # Gray
-                
-                # Calculate momentum
-                recent_change = ((blended_df['rate'].iloc[-1] - blended_df['rate'].iloc[-20]) / blended_df['rate'].iloc[-20]) * 100
-                
-                momentum = "Positive" if recent_change > 0 else "Negative"
-                momentum_color = "#4CAF50" if recent_change > 0 else "#F44336"
-                
-                st.markdown(f"""
-                <div style="background-color:#1E1E1E; padding:10px; border-radius:5px;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                        <span style="color:white;">Trend:</span>
-                        <span style="color:{color};">{trend}</span>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                        <span style="color:white;">Momentum:</span>
-                        <span style="color:{momentum_color};">{momentum}</span>
-                    </div>
-                    <div style="display:flex; justify-content:space-between;">
-                        <span style="color:white;">Change:</span>
-                        <span style="color:{momentum_color};">{recent_change:.2f}%</span>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.info("Insufficient data for trend analysis")
-    
-    # If no historical data is available, fall back to the existing rate history display
-    elif realtime_df is not None and not realtime_df.empty:
-        # Your existing rate history chart code
-        fig = px.line(realtime_df, x="timestamp", y="rate", 
-                    title=f"{sub['base']}/{sub['quote']} Rate History",
-                    labels={"timestamp": "Time", "rate": "Rate"})
-        
-        # Calculate range values for better visualization
-        min_rate = realtime_df['rate'].min()
-        max_rate = realtime_df['rate'].max()
-        rate_range = max_rate - min_rate
-        
-        # If range is very small, create a custom range to make changes more visible
-        if rate_range < 0.001:
-            # Use a small fixed range around the mean
-            mean_rate = realtime_df['rate'].mean()
-            fig.update_yaxes(range=[mean_rate * 0.9995, mean_rate * 1.0005])
-        elif rate_range < 0.01:
-            # Add some padding to min/max values to make changes more visible
-            fig.update_yaxes(range=[min_rate * 0.999, max_rate * 1.001])
-        
-        # Apply dark theme styling
-        fig.update_layout(
-                height=300,
-                margin=dict(l=0, r=0, t=40, b=0),
-                paper_bgcolor="#121212",  # Dark background
-                plot_bgcolor="#121212",   # Dark background
-                font=dict(color="#FFFFFF"),  # Pure white text for better visibility
-                title_font_color="#FFFFFF",  # Pure white title text
-                xaxis=dict(
-                    gridcolor="#333333",  # Darker grid
-                    tickcolor="#FFFFFF",  # Pure white tick marks
-                    linecolor="#555555",  # Medium gray axis line
-                    tickfont=dict(color="#FFFFFF", size=12),  # Brighter, larger tick labels
-                    title_font=dict(color="#FFFFFF", size=14)  # Brighter, larger axis title
-                ),
-                yaxis=dict(
-                    gridcolor="#333333",  # Darker grid
-                    tickcolor="#FFFFFF",  # Pure white tick marks
-                    linecolor="#555555",  # Medium gray axis line
-                    tickfont=dict(color="#FFFFFF", size=12),  # Brighter, larger tick labels
-                    title_font=dict(color="#FFFFFF", size=14)  # Brighter, larger axis title
-                )
-            )
-        
-        # Change line color to a brighter shade
-        fig.update_traces(
-            line=dict(color="#4D9BF5", width=2)  # Bright blue line
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No rate history data available yet. Please wait for more data to be collected.")
-        
-# Add this to your main app to handle crypto calendar events
+                    st.info("Loading rate data...")
 
+                # Threshold slider
+                new_threshold = st.slider(
+                    "Alert threshold (%)",
+                    min_value=0.1,
+                    max_value=5.0,
+                    value=float(sub["threshold"]),
+                    step=0.1,
+                    key=f"threshold_slider_{key_base}"
+                )
+
+                if new_threshold != sub["threshold"]:
+                    # Find the subscription and update it
+                    for i, s in enumerate(st.session_state.subscriptions):
+                        if s['base'] == sub['base'] and s['quote'] == sub['quote']:
+                            st.session_state.subscriptions[i]["threshold"] = new_threshold
+                            add_notification(f"Updated threshold for {sub['base']}/{sub['quote']} to {new_threshold}%", "system")
+                            break
+            
+            with chart_tab:
+                # Display the standard rate history chart
+                # blended_display_rate_history(sub)
+                display_combined_charts(sub['base'], sub['quote'])
+            
+            with prophet_tab:
+                # Prophet forecasting tab
+                add_forecast_to_dashboard(sub, use_expander=False)
+            
+            with darts_tab:
+                # NEW: DARTS forecasting tab
+                add_darts_forecast_tab(sub)
+            
+            with calendar_tab:
+                # Existing calendar tab code
+                display_economic_calendar_for_currency_pair(sub['base'], sub['quote'])
+            
+            with sentiment_tab:
+                # Existing sentiment tab code
+                display_sentiment_tab(sub['base'], sub['quote'])
+
+    # with st.expander("Details", expanded=not st.session_state.collapse_all_cards):
+    #     # ... existing tabs code ...
+        
+    #     # Add the tabs as shown in the earlier code
+        
+    #     # NEW: Add the comparison section after the tabs
+    #     add_forecast_comparison_card(sub)
+
+# Add this to your main app to handle crypto calendar events
 def display_crypto_calendar_for_currency(base, quote, debug_log=None):
     if debug_log is None:
         debug_log = []
@@ -972,7 +714,7 @@ def fetch_all_crypto_events(force=False):
 
     if should_refresh:
         with st.spinner("Fetching crypto calendar..."):
-            print("Fetching crypto calendar")
+            logger.info("Fetching crypto calendar")
             debug_log = []  # Placeholder for debugging, consider using it for logging if needed
             events_json_str = fetch_crypto_events(days=7, use_mock_fallback=True, debug_log=debug_log)
             
@@ -995,7 +737,7 @@ def fetch_all_crypto_events(force=False):
                     # Notify user
                     add_notification(f"Crypto calendar updated with {len(valid_events)} valid events", "success")
                     # Debugging
-                    print(f"Fetched valid events: {valid_events}")
+                    logger.info(f"Fetched valid events: {valid_events}")
                 else:
                     st.warning("No valid events found")
                     st.session_state.crypto_events = []
@@ -1111,7 +853,7 @@ def create_sentiment_tab_ui():
         st.rerun()
     
     # Get all available pairs
-    pairs_data = sentiment_data.get('data', {})
+    pairs_data = {} if sentiment_data is None else sentiment_data.get('data', {})
     
     if not pairs_data:
         st.warning("No pairs data available")
@@ -1651,12 +1393,43 @@ def fetch_all_economic_events(force=False):
     
     return st.session_state.economic_events
 
-# Initialize the session state for economic events
-if 'economic_events' not in st.session_state:
-    st.session_state.economic_events = None
 
-if 'economic_events_last_fetch' not in st.session_state:
-    st.session_state.economic_events_last_fetch = None
+def ensure_initial_news_loaded():
+    """Ensure news are loaded from disk on first page load"""
+    if not st.session_state.initial_news_loaded:
+        # Get currencies from subscriptions
+        currencies = list(set([sub["base"] for sub in st.session_state.subscriptions] + 
+                         [sub["quote"] for sub in st.session_state.subscriptions]))
+        
+        # Load news from disk based on market type
+        if st.session_state.market_type == 'Indices':
+            indices_list = [sub["base"] for sub in st.session_state.subscriptions]
+            # Check if we have any cached news already
+            if not st.session_state.get('indices_news'):
+                with st.spinner("Loading news from disk..."):
+                    # This should try to load from disk first
+                    news_items = fetch_indices_news(indices_list, use_mock_fallback=True)
+                    if news_items:
+                        st.session_state.indices_news = news_items
+                        st.session_state.last_indices_news_fetch = datetime.now()
+                        add_notification(f"Loaded {len(news_items)} news items from disk", "success")
+        else:
+            # For FX or Crypto
+            news_cache_key = 'fx_news' if st.session_state.market_type == 'FX' else 'crypto_news'
+            last_fetch_key = 'last_fx_news_fetch' if st.session_state.market_type == 'FX' else 'last_crypto_news_fetch'
+            
+            # Check if we have any cached news already
+            if not st.session_state.get(news_cache_key):
+                with st.spinner("Loading news from disk..."):
+                    # The fetch_news function should load from disk first
+                    news_items = fetch_news(currencies, use_mock_fallback=True)
+                    if news_items:
+                        st.session_state[news_cache_key] = news_items
+                        st.session_state[last_fetch_key] = datetime.now()
+                        add_notification(f"Loaded {len(news_items)} news items from disk", "success")
+        
+        # Mark that we've done the initial load
+        st.session_state.initial_news_loaded = True
 
 
 def fetch_indices_news(indices_list=None, use_mock_fallback=True, force=False):
@@ -1714,6 +1487,1041 @@ def fetch_indices_news(indices_list=None, use_mock_fallback=True, force=False):
     
     return []
 
+def create_mock_indices_news(indices_list=None):
+    """Create mock news items for indices when real data cannot be fetched"""
+    if indices_list is None:
+        indices_list = ['^DJI', '^GSPC', '^IXIC', '^FTSE', '^GDAXI', '^FCHI', '^N225']
+    
+    # Map indices to their proper names
+    indices_names = {
+        '^DJI': 'Dow Jones',
+        '^GSPC': 'S&P 500',
+        '^IXIC': 'NASDAQ',
+        '^FTSE': 'FTSE 100',
+        '^GDAXI': 'DAX',
+        '^FCHI': 'CAC 40',
+        '^N225': 'Nikkei 225',
+    }
+    
+    mock_news = []
+    current_time = datetime.now()
+    
+    # Sample news templates
+    news_templates = [
+        {"title": "{index} {direction} by {value}% as {factor} {impact} markets", 
+         "summary": "The {index} {direction} {value}% {timeframe} as investors react to {factor}. Analysts suggest this trend might {future}.",
+         "sentiment": "positive" if random.random() > 0.5 else "negative"},
+        
+        {"title": "{sector} stocks lead {index} {movement}",
+         "summary": "{sector} companies showed strong performance today, leading the {index} to {movement}. This comes after {news_event}.",
+         "sentiment": "positive" if random.random() > 0.5 else "negative"},
+        
+        {"title": "{index} {trades} as economic data {surprises} expectations",
+         "summary": "The latest economic figures {compared} analyst forecasts, causing the {index} to {trade_action}. Market watchers now anticipate {outlook}.",
+         "sentiment": "neutral"},
+        
+        {"title": "Market Report: {index} {closes} amid global {condition}",
+         "summary": "Global markets experienced {volatility} today with the {index} {closing}. Key factors include {factor1} and {factor2}.",
+         "sentiment": "positive" if random.random() > 0.5 else "negative"},
+    ]
+    
+    # Sample data to fill templates
+    directions = ["rises", "jumps", "climbs", "advances", "gains", "falls", "drops", "declines", "retreats", "slides"]
+    positive_directions = ["rises", "jumps", "climbs", "advances", "gains"]
+    values = [round(random.uniform(0.1, 3.5), 2) for _ in range(20)]
+    factors = ["interest rate expectations", "inflation data", "economic growth concerns", "corporate earnings", 
+               "central bank policy", "geopolitical tensions", "trade negotiations", "supply chain issues",
+               "consumer sentiment", "employment figures", "manufacturing data", "commodity prices"]
+    impacts = ["boost", "lift", "support", "pressure", "weigh on", "drag down"]
+    timeframes = ["today", "in early trading", "in late trading", "this morning", "this afternoon", "in volatile trading"]
+    futures = ["continue in the short term", "reverse in coming sessions", "stabilize as markets digest the news",
+               "depend on upcoming economic data", "be closely watched by investors"]
+    
+    sectors = ["Technology", "Financial", "Healthcare", "Energy", "Industrial", "Consumer", "Utility", "Communication"]
+    movements = ["higher", "gains", "advances", "rally", "decline", "losses", "lower"]
+    news_events = ["positive earnings reports", "new product announcements", "regulatory approvals", 
+                  "merger activity", "analyst upgrades", "economic data releases"]
+    
+    trades = ["trades higher", "moves upward", "edges higher", "trades lower", "moves downward", "stabilizes"]
+    surprises = ["beats", "exceeds", "falls short of", "disappoints", "matches", "comes in line with"]
+    compareds = ["came in stronger than", "were weaker than", "matched", "surprised to the upside of", "disappointed relative to"]
+    trade_actions = ["rise", "gain", "advance", "fall", "decline", "drift lower", "trade in a tight range"]
+    outlooks = ["further volatility", "stabilization", "careful positioning ahead of key data", "sector rotation"]
+    
+    closes = ["finishes higher", "closes lower", "ends mixed", "finishes flat", "closes up", "ends down"]
+    conditions = ["uncertainty", "optimism", "concerns", "volatility", "recovery hopes", "recession fears"]
+    volatilitys = ["heightened volatility", "cautious trading", "strong momentum", "mixed sentiment", "sector rotation"]
+    closings = ["finishing in positive territory", "ending the session lower", "closing mixed", "recovering from early losses"]
+    factor1s = ["interest rate decisions", "inflation concerns", "economic data", "earnings season", "geopolitical events"]
+    factor2s = ["currency movements", "commodity price shifts", "investor sentiment", "technical factors", "liquidity conditions"]
+    
+    # Create mock news for each index
+    for index_symbol in indices_list:
+        index_name = indices_names.get(index_symbol, index_symbol)
+        
+        # Create 2-3 news items per index
+        for _ in range(random.randint(2, 3)):
+            template = random.choice(news_templates)
+            sentiment = template["sentiment"]
+            
+            # Ensure direction matches sentiment for first template
+            if "direction" in template["title"]:
+                direction = random.choice([d for d in directions if (d in positive_directions) == (sentiment == "positive")])
+                value = random.choice(values)
+                factor = random.choice(factors)
+                impact = random.choice([i for i in impacts if (i in ["boost", "lift", "support"]) == (sentiment == "positive")])
+                timeframe = random.choice(timeframes)
+                future = random.choice(futures)
+                
+                title = template["title"].format(index=index_name, direction=direction, value=value, factor=factor, impact=impact)
+                summary = template["summary"].format(index=index_name, direction=direction, value=value, 
+                                                    timeframe=timeframe, factor=factor, future=future)
+            
+            # For sector-led template
+            elif "sector" in template["title"]:
+                sector = random.choice(sectors)
+                movement = random.choice([m for m in movements if (m in ["higher", "gains", "advances", "rally"]) == (sentiment == "positive")])
+                news_event = random.choice(news_events)
+                
+                title = template["title"].format(sector=sector, index=index_name, movement=movement)
+                summary = template["summary"].format(sector=sector, index=index_name, movement=movement, news_event=news_event)
+            
+            # For economic data template
+            elif "economic data" in template["title"]:
+                trade = random.choice(trades)
+                surprise = random.choice(surprises)
+                compared = random.choice(compareds)
+                trade_action = random.choice(trade_actions)
+                outlook = random.choice(outlooks)
+                
+                title = template["title"].format(index=index_name, trades=trade, surprises=surprise)
+                summary = template["summary"].format(compared=compared, index=index_name, trade_action=trade_action, outlook=outlook)
+            
+            # For market report template
+            else:
+                close = random.choice(closes)
+                condition = random.choice(conditions)
+                volatility = random.choice(volatilitys)
+                closing = random.choice(closings)
+                factor1 = random.choice(factor1s)
+                factor2 = random.choice(factor2s)
+                
+                title = template["title"].format(index=index_name, closes=close, condition=condition)
+                summary = template["summary"].format(volatility=volatility, index=index_name, closing=closing, 
+                                                    factor1=factor1, factor2=factor2)
+            
+            # Create timestamp (randomly distributed over the last 24 hours)
+            hours_ago = random.randint(0, 23)
+            minutes_ago = random.randint(0, 59)
+            timestamp = current_time - timedelta(hours=hours_ago, minutes=minutes_ago)
+            
+            # Set a score based on sentiment
+            if sentiment == "positive":
+                score = random.uniform(0.2, 0.8)
+            elif sentiment == "negative":
+                score = random.uniform(-0.8, -0.2)
+            else:
+                score = random.uniform(-0.2, 0.2)
+            
+            # Create the news item
+            news_item = {
+                "title": title,
+                "summary": summary,
+                "source": random.choice(["Yahoo Finance", "Market Watch", "Bloomberg", "CNBC", "Financial Times", "Reuters"]),
+                "timestamp": timestamp,
+                "unix_timestamp": int(timestamp.timestamp()),
+                "currency": index_name,
+                "currency_pairs": {index_name},
+                "sentiment": sentiment,
+                "score": score,
+                "url": f"https://example.com/mock-news/{index_symbol.replace('^', '')}/{int(timestamp.timestamp())}"
+            }
+            
+            mock_news.append(news_item)
+    
+    # Add some general market news
+    for _ in range(5):
+        is_positive = random.random() > 0.5
+        sentiment = "positive" if is_positive else "negative"
+        
+        templates = [
+            "Global markets {direction} as investors weigh {factor1} against {factor2}",
+            "Markets {move} {timeframe} amid {condition} and {event}",
+            "Investors {action} stocks as {indicator} {performance}"
+        ]
+        
+        template = random.choice(templates)
+        
+        if "direction" in template:
+            direction = random.choice(["rise", "advance", "climb higher"]) if is_positive else random.choice(["fall", "retreat", "move lower"])
+            factor1 = random.choice(factors)
+            factor2 = random.choice([f for f in factors if f != factor1])
+            title = template.format(direction=direction, factor1=factor1, factor2=factor2)
+            
+        elif "move" in template:
+            move = random.choice(["gain", "rally", "advance"]) if is_positive else random.choice(["decline", "fall", "retreat"])
+            timeframe = random.choice(["today", "in early trading", "across the board"])
+            condition = random.choice(conditions)
+            event = random.choice(news_events)
+            title = template.format(move=move, timeframe=timeframe, condition=condition, event=event)
+            
+        else:
+            action = random.choice(["buy", "favor", "embrace"]) if is_positive else random.choice(["sell", "avoid", "reduce exposure to"])
+            indicator = random.choice(["economic data", "corporate earnings", "central bank comments", "technical indicators"])
+            performance = random.choice(["surpasses expectations", "shows improving trends", "indicates growth"]) if is_positive else random.choice(["disappoints", "suggests weakness", "indicates slowdown"])
+            title = template.format(action=action, indicator=indicator, performance=performance)
+        
+        # Create summary
+        summary_templates = [
+            "Investors are closely monitoring developments in {area1} and {area2} as markets continue to {trend}.",
+            "Analysts point to {factor} as a key driver of market sentiment, with {outlook} for the coming {period}.",
+            "Trading volumes {volume} as {participants} {activity}, with particular focus on {sector} stocks."
+        ]
+        
+        summary_template = random.choice(summary_templates)
+        
+        if "area" in summary_template:
+            area1 = random.choice(["monetary policy", "fiscal spending", "corporate earnings", "international trade", "supply chains"])
+            area2 = random.choice(["inflation expectations", "growth forecasts", "interest rate paths", "geopolitical tensions", "commodity markets"])
+            trend = random.choice(["show resilience", "seek direction", "adjust to new data", "price in future expectations", "respond to mixed signals"])
+            summary = summary_template.format(area1=area1, area2=area2, trend=trend)
+            
+        elif "factor" in summary_template:
+            factor = random.choice(["recent economic data", "central bank communication", "earnings surprises", "global risk sentiment", "technical positioning"])
+            outlook = random.choice(["cautious expectations", "optimistic forecasts", "mixed projections", "revised estimates", "continued uncertainty"])
+            period = random.choice(["weeks", "months", "quarter", "reporting season", "economic cycle"])
+            summary = summary_template.format(factor=factor, outlook=outlook, period=period)
+            
+        else:
+            volume = random.choice(["increased", "remained elevated", "were mixed", "fell below average", "reflected caution"])
+            participants = random.choice(["institutional investors", "retail traders", "hedge funds", "foreign investors", "market makers"])
+            activity = random.choice(["repositioned portfolios", "adjusted exposure", "evaluated opportunities", "reassessed risks", "took profits"])
+            sector = random.choice(sectors)
+            summary = summary_template.format(volume=volume, participants=participants, activity=activity, sector=sector)
+        
+        # Create timestamp
+        hours_ago = random.randint(0, 12)
+        minutes_ago = random.randint(0, 59)
+        timestamp = current_time - timedelta(hours=hours_ago, minutes=minutes_ago)
+        
+        # Set a score based on sentiment
+        if sentiment == "positive":
+            score = random.uniform(0.2, 0.8)
+        elif sentiment == "negative":
+            score = random.uniform(-0.8, -0.2)
+        else:
+            score = random.uniform(-0.2, 0.2)
+        
+        # Create the news item for general market
+        news_item = {
+            "title": title,
+            "summary": summary,
+            "source": random.choice(["Yahoo Finance", "Market Watch", "Bloomberg", "CNBC", "Financial Times", "Reuters"]),
+            "timestamp": timestamp,
+            "unix_timestamp": int(timestamp.timestamp()),
+            "currency": "Market",  # Use Market as the currency for general market news
+            "currency_pairs": {"Market"},
+            "sentiment": sentiment,
+            "score": score,
+            "url": f"https://example.com/mock-news/market/{int(timestamp.timestamp())}"
+        }
+        
+        mock_news.append(news_item)
+    
+    # Sort by timestamp, newest first
+    mock_news.sort(key=lambda x: x["timestamp"], reverse=True)
+    
+    return mock_news
+
+# The callback just sets a flag
+# When refreshing news, save existing news first
+def refresh_news_callback():
+    """
+    Callback function for refreshing news.
+    Triggered when the user clicks the refresh news button.
+    Saves existing news, forces a refresh, and triggers a page rerun.
+    """
+    # Set the refresh flag
+    st.session_state.refresh_news_clicked = True
+    
+    # Determine the appropriate cache keys based on market type
+    if st.session_state.market_type == 'FX':
+        news_cache_key = 'fx_news'
+        last_fetch_key = 'last_fx_news_fetch'
+        next_refresh_key = 'next_fx_news_refresh_time'
+    elif st.session_state.market_type == 'Crypto':
+        news_cache_key = 'crypto_news'
+        last_fetch_key = 'last_crypto_news_fetch'
+        next_refresh_key = 'next_crypto_news_refresh_time'
+    else:  # Indices
+        news_cache_key = 'indices_news'
+        last_fetch_key = 'last_indices_news_fetch'
+        next_refresh_key = 'next_indices_news_refresh_time'
+    
+    # Log the refresh action
+    logger.info(f"Manual news refresh requested for {st.session_state.market_type} market")
+    
+    # IMPORTANT: Save the existing news instead of clearing it
+    if news_cache_key in st.session_state and st.session_state[news_cache_key]:
+        existing_news = st.session_state[news_cache_key].copy()
+        st.session_state[f"{news_cache_key}_temp"] = existing_news
+        logger.info(f"Saved {len(existing_news)} existing news items to temp storage")
+    
+    # Reset the fetch timestamp to force a refresh
+    st.session_state[last_fetch_key] = None
+    
+    # Set the next refresh time to now
+    st.session_state[next_refresh_key] = datetime.now()
+    
+    # Increment UI refresh key to ensure complete UI update
+    if 'ui_refresh_key' in st.session_state:
+        st.session_state.ui_refresh_key += 1
+    
+    # Add notification
+    add_notification(f"Refreshing {st.session_state.market_type} news...", "info")
+    
+    # Force a refresh
+    st.rerun()
+
+
+def switch_market_type(new_market_type):
+    """
+    Switch the application to a different market type with clean state transition.
+    
+    Args:
+        new_market_type: The market type to switch to ('FX', 'Crypto', or 'Indices')
+    """
+    current_market_type = st.session_state.market_type
+    
+    # Only proceed if we're actually changing market types
+    if current_market_type == new_market_type:
+        return
+    
+    # Log the switch for debugging
+    logger.info(f"Switching market type from {current_market_type} to {new_market_type}")
+    
+    # Save current subscriptions to the appropriate market-specific variable
+    if current_market_type == 'FX':
+        st.session_state.fx_subscriptions = st.session_state.subscriptions.copy()
+    elif current_market_type == 'Crypto':
+        st.session_state.crypto_subscriptions = st.session_state.subscriptions.copy()
+    else:  # Indices
+        st.session_state.indices_subscriptions = st.session_state.subscriptions.copy()
+    
+    # Update market type
+    st.session_state.market_type = new_market_type
+    
+    # Load the appropriate subscriptions for the new market type
+    if new_market_type == 'FX':
+        if hasattr(st.session_state, 'fx_subscriptions') and st.session_state.fx_subscriptions:
+            st.session_state.subscriptions = st.session_state.fx_subscriptions.copy()
+        else:
+            st.session_state.subscriptions = default_fx_pairs.copy()
+            st.session_state.fx_subscriptions = default_fx_pairs.copy()
+    elif new_market_type == 'Crypto':
+        if hasattr(st.session_state, 'crypto_subscriptions') and st.session_state.crypto_subscriptions:
+            st.session_state.subscriptions = st.session_state.crypto_subscriptions.copy()
+        else:
+            st.session_state.subscriptions = default_crypto_pairs.copy()
+            st.session_state.crypto_subscriptions = default_crypto_pairs.copy()
+    else:  # Indices
+        if hasattr(st.session_state, 'indices_subscriptions') and st.session_state.indices_subscriptions:
+            st.session_state.subscriptions = st.session_state.indices_subscriptions.copy()
+        else:
+            st.session_state.subscriptions = default_indices.copy()
+            st.session_state.indices_subscriptions = default_indices.copy()
+    
+    # Update available currencies based on the new market type
+    global available_currencies
+    if new_market_type == 'FX':
+        available_currencies = fx_currencies
+    elif new_market_type == 'Crypto':
+        available_currencies = crypto_currencies
+    else:  # Indices
+        available_currencies = indices
+    
+    # Reset UI-related state
+    st.session_state.collapse_all_cards = False
+    
+    # Force complete UI refresh
+    if 'ui_refresh_key' not in st.session_state:
+        st.session_state.ui_refresh_key = 0
+    st.session_state.ui_refresh_key += 1
+    
+    # Refresh rates and news for the new market type
+    try:
+        update_rates()  # Update rates for new subscriptions
+        
+        # Reset cache keys for the new market type
+        if new_market_type == 'FX':
+            st.session_state.next_fx_news_refresh_time = datetime.now()
+        elif new_market_type == 'Crypto':
+            st.session_state.next_crypto_news_refresh_time = datetime.now()
+        else:  # Indices
+            st.session_state.next_indices_news_refresh_time = datetime.now()
+            
+        # Force cached_news to be based on the current market type
+        if new_market_type == 'FX' and 'fx_news' in st.session_state:
+            st.session_state.cached_news = st.session_state.fx_news
+        elif new_market_type == 'Crypto' and 'crypto_news' in st.session_state:
+            st.session_state.cached_news = st.session_state.crypto_news
+        elif new_market_type == 'Indices' and 'indices_news' in st.session_state:
+            st.session_state.cached_news = st.session_state.indices_news
+        else:
+            # If no news is available for the new market type, clear the cache
+            st.session_state.cached_news = []
+            
+        # Mark that we need a fresh news fetch
+        st.session_state.refresh_news_clicked = True
+    except Exception as e:
+        logger.error(f"Error during market switch: {str(e)}")
+        add_notification(f"Error refreshing data after market switch: {str(e)}", "error")
+    
+    # Notify user
+    add_notification(f"Switched to {new_market_type} Market", "system")
+
+
+def display_news_items(news_items):
+    """
+    Display news items with better debugging information and market-specific styling.
+    
+    Args:
+        news_items: List of news item dictionaries to display
+    """
+    # Check if we have any news to display
+    if not news_items:
+        st.info("No news items available to display.")
+        
+        # Add debug info when in Crypto mode but no news
+        if st.session_state.market_type == 'Crypto':
+            # Check if we have any news in the crypto_news cache
+            if 'crypto_news' in st.session_state and st.session_state.crypto_news:
+                st.warning(f"Found {len(st.session_state.crypto_news)} items in crypto_news cache, but none passed filtering.")
+                
+                # Show a sample of what's in the cache for debugging
+                with st.expander("Debug: Sample from crypto_news cache"):
+                    for i, item in enumerate(st.session_state.crypto_news[:3]):
+                        st.markdown(f"**Item {i+1}:** {item.get('title', 'No title')}")
+                        st.markdown(f"Currency: {item.get('currency', 'None')}")
+                        pairs = item.get('currency_pairs', set())
+                        st.markdown(f"Currency pairs: {', '.join(str(p) for p in pairs) if pairs else 'None'}")
+                        # Show market type flags
+                        flags = []
+                        if item.get('is_fx', False):
+                            flags.append("FX")
+                        if item.get('is_crypto', False):
+                            flags.append("Crypto")
+                        if item.get('is_indices', False):
+                            flags.append("Indices")
+                        if item.get('is_market', False):
+                            flags.append("Market")
+                        st.markdown(f"Market types: {', '.join(flags) if flags else 'None'}")
+        return
+    
+    # Group items by day for better organization
+    grouped_news = {}
+    for item in news_items:
+        # Extract the date (just the day)
+        if 'timestamp' in item:
+            day_key = item['timestamp'].strftime('%Y-%m-%d')
+        else:
+            day_key = "Unknown Date"
+            
+        if day_key not in grouped_news:
+            grouped_news[day_key] = []
+            
+        grouped_news[day_key].append(item)
+    
+    # Order days with most recent first
+    sorted_days = sorted(grouped_news.keys(), reverse=True)
+    
+    for day in sorted_days:
+        # Only add date header if more than one day
+        if len(sorted_days) > 1:
+            # Format the date nicely
+            try:
+                display_date = datetime.strptime(day, '%Y-%m-%d').strftime('%A, %B %d, %Y')
+                st.markdown(f"### {display_date}")
+            except:
+                st.markdown(f"### {day}")
+        
+        # Display each item for this day
+        for item in sorted(grouped_news[day], key=lambda x: x.get('timestamp', datetime.now()), reverse=True):
+            # Format timestamp
+            time_diff = datetime.now() - item["timestamp"]
+            if time_diff.days > 0:
+                time_str = f"{time_diff.days}d ago"
+            elif time_diff.seconds // 3600 > 0:
+                time_str = f"{time_diff.seconds // 3600}h ago"
+            elif time_diff.seconds // 60 > 0:
+                time_str = f"{time_diff.seconds // 60}m ago"
+            else:
+                time_str = "just now"
+
+            # Create color based on sentiment
+            if 'sentiment' in item and item['sentiment'] == 'positive':
+                border_color = "green"
+                bg_color = "#d4edda"
+                text_color = "#28a745"
+            elif 'sentiment' in item and item['sentiment'] == 'negative':
+                border_color = "red"
+                bg_color = "#f8d7da"
+                text_color = "#dc3545"
+            else:  # neutral
+                border_color = "gray"
+                bg_color = "#f8f9fa"
+                text_color = "#6c757d"
+
+            # Customize the badge color based on market type
+            currency_badge = item.get('currency', 'Unknown')
+            
+            # Set badge color based on market type
+            badge_bg = "#e0e8ff"  # Default blue
+            badge_text = "black"
+            
+            # Check if the item has market type flags
+            if item.get('is_crypto', False) or st.session_state.market_type == 'Crypto':
+                badge_bg = "#9C27B0"  # Purple for crypto
+                badge_text = "white"
+            elif item.get('is_indices', False) or st.session_state.market_type == 'Indices':
+                badge_bg = "#FF9800"  # Orange for indices
+                badge_text = "white"
+            elif item.get('is_fx', False) or st.session_state.market_type == 'FX':
+                badge_bg = "#1E88E5"  # Blue for FX
+                badge_text = "white"
+            elif currency_badge == "Market":
+                badge_bg = "#607D8B"  # Gray-blue for general market
+                badge_text = "white"
+
+            # Display the news item
+            with st.container():
+                # Title with link if available
+                title_html = f"""<div style="padding:12px; margin-bottom:12px; border-left:4px solid {border_color}; border-radius:4px; background-color:#ffffff;">"""
+                
+                if 'url' in item and item['url']:
+                    title_html += f"""<div style="font-weight:bold; margin-bottom:8px;">
+                        <a href="{item['url']}" target="_blank" style="text-decoration:none; color:#1e88e5;">
+                            {item['title']} <span style="font-size:0.8em;">🔗</span>
+                        </a>
+                    </div>"""
+                else:
+                    title_html += f"""<div style="font-weight:bold; margin-bottom:8px;">{item['title']}</div>"""
+                
+                # Add a brief summary if available (truncated)
+                if 'summary' in item and item['summary']:
+                    summary = item['summary']
+                    if len(summary) > 150:
+                        summary = summary[:147] + "..."
+                    title_html += f"""<div style="font-size:0.9em; color:#333; margin-bottom:8px;">{summary}</div>"""
+                
+                # Add the currency badge and metadata
+                title_html += f"""
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <span style="background-color:{badge_bg}; color:{badge_text}; padding:2px 6px; border-radius:3px; margin-right:5px; font-size:0.8em;">
+                                {currency_badge}
+                            </span>
+                            <span style="color:#6c757d; font-size:0.8em;">{item['source']}</span>
+                        </div>
+                        <div>
+                            <span style="color:#6c757d; font-size:0.8em; margin-right:5px;">{time_str}</span>
+                            <span style="background-color:{bg_color}; color:{text_color}; padding:2px 6px; border-radius:10px; font-size:0.8em;">
+                                {item.get('sentiment', 'neutral')} ({'+' if item.get('score', 0) > 0 else ''}{item.get('score', 0)})
+                            </span>
+                        </div>
+                    </div>
+                </div>"""
+                
+                st.markdown(title_html, unsafe_allow_html=True)
+
+
+def filter_news_by_market_type(news_items, subscription_pairs, market_type):
+    """
+    Filter news items based on market type and subscriptions.
+    Ensures strict separation between FX, Crypto, and Indices news.
+    
+    Args:
+        news_items: List of news item dictionaries
+        subscription_pairs: Set of subscribed currency pairs
+        market_type: Current market type ('FX', 'Crypto', or 'Indices')
+    
+    Returns:
+        List of filtered news items
+    """
+    filtered_news = []
+    
+    # Define market-specific currencies
+    fx_currencies = {'EUR', 'USD', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY', 'NZD', 
+                    'HKD', 'INR', 'SGD', 'NOK', 'SEK', 'MXN', 'ZAR', 'TRY', 'XAG'}
+    
+    crypto_currencies = {'BTC', 'ETH', 'XRP', 'SOL', 'BNB', 'ADA', 'DOGE', 'DOT', 
+                         'AVAX', 'LINK', 'LTC', 'UNI', 'XLM', 'MATIC', 'ATOM', 
+                         'USDT', 'USDC', 'BUSD'}
+    
+    indices_symbols = {'^DJI', '^GSPC', '^IXIC', '^FTSE', '^GDAXI', '^FCHI', '^N225'}
+    indices_names = {'Dow Jones', 'S&P 500', 'NASDAQ', 'FTSE 100', 'DAX', 'CAC 40', 'Nikkei 225'}
+    
+    for item in news_items:
+        currency = item.get('currency', '')
+        currency_pairs = item.get('currency_pairs', set()) if isinstance(item.get('currency_pairs'), set) else set()
+        
+        # Skip items if they don't match market type
+        if market_type == 'FX':
+            # Skip crypto news in FX mode
+            if currency in crypto_currencies or any(curr in crypto_currencies for curr in currency_pairs):
+                continue
+            # Skip indices news in FX mode
+            if (currency in indices_symbols or currency in indices_names or 
+                any(idx in indices_symbols or idx in indices_names for idx in currency_pairs)):
+                continue
+        
+        elif market_type == 'Crypto':
+            # Only include crypto-related news
+            if not (currency in crypto_currencies or 
+                   any(curr in crypto_currencies for pair in currency_pairs for curr in pair.split('/') if '/' in pair)):
+                # Allow general market news
+                if currency != "Market" and "Market" not in currency_pairs:
+                    continue
+        
+        elif market_type == 'Indices':
+            # Only include indices-related news
+            if not (currency in indices_symbols or currency in indices_names or
+                   any(idx in indices_symbols or idx in indices_names for idx in currency_pairs)):
+                # Allow general market news
+                if currency != "Market" and "Market" not in currency_pairs:
+                    continue
+        
+        # Now filter by subscriptions
+        include_item = False
+        
+        # Include if currency matches any subscription
+        if currency in subscription_pairs:
+            include_item = True
+        # Include if any currency pair matches
+        elif any(pair in subscription_pairs for pair in currency_pairs):
+            include_item = True
+        # Include market news
+        elif currency == "Market" or "Market" in currency_pairs:
+            include_item = True
+            
+        if include_item:
+            filtered_news.append(item)
+    
+    return filtered_news
+
+
+def tag_news_by_market_type(news_items):
+    """
+    Tags news items with appropriate market type flags.
+    This helps with filtering later.
+    
+    Args:
+        news_items: List of news item dictionaries
+    
+    Returns:
+        List of news items with market_type tags
+    """
+    if not news_items:
+        return []
+    
+    # Define market-specific currencies and terms
+    fx_currencies = {'EUR', 'USD', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY', 'NZD', 
+                    'HKD', 'INR', 'SGD', 'NOK', 'SEK', 'MXN', 'ZAR', 'TRY', 'XAG'}
+    
+    crypto_currencies = {'BTC', 'ETH', 'XRP', 'SOL', 'BNB', 'ADA', 'DOGE', 'DOT', 
+                         'AVAX', 'LINK', 'LTC', 'UNI', 'XLM', 'MATIC', 'ATOM', 
+                         'USDT', 'USDC', 'BUSD'}
+    
+    crypto_terms = {'BITCOIN', 'ETHEREUM', 'CRYPTOCURRENCY', 'BLOCKCHAIN', 'CRYPTO', 
+                   'TOKEN', 'ALTCOIN', 'DEFI', 'NFT', 'MINING', 'WALLET'}
+    
+    indices_symbols = {'^DJI', '^GSPC', '^IXIC', '^FTSE', '^GDAXI', '^FCHI', '^N225'}
+    indices_names = {'DOW JONES', 'S&P 500', 'NASDAQ', 'FTSE 100', 'DAX', 'CAC 40', 'NIKKEI 225'}
+    indices_terms = {'INDEX', 'STOCK MARKET', 'SHARES', 'EQUITY', 'WALL STREET', 'NYSE', 'NASDAQ'}
+    
+    fx_terms = {'FOREX', 'FX MARKET', 'CURRENCY PAIR', 'EXCHANGE RATE', 'CENTRAL BANK', 
+               'INTEREST RATE', 'MONETARY POLICY', 'DOLLAR', 'EURO', 'POUND', 'YEN'}
+    
+    for item in news_items:
+        # Get currency and title/summary for classification
+        currency = item.get('currency', '')
+        if isinstance(currency, str):
+            currency = currency.upper()
+        else:
+            currency = ""
+            
+        title = item.get('title', '').upper()
+        summary = item.get('summary', '').upper()
+        
+        # Get currency pairs
+        currency_pairs = item.get('currency_pairs', set())
+        if not isinstance(currency_pairs, set):
+            currency_pairs = set()
+            
+        # Extract all mentioned currencies from title and summary
+        all_text = f"{title} {summary}"
+        
+        # Initialize market types flags as False
+        item['is_fx'] = False
+        item['is_crypto'] = False
+        item['is_indices'] = False
+        item['is_market'] = False
+        
+        # Check for crypto indicators
+        crypto_currency_mentioned = (
+            currency in crypto_currencies or
+            any(c in all_text for c in crypto_currencies)
+        )
+        
+        crypto_term_mentioned = any(term in all_text for term in crypto_terms)
+        
+        # Check for indices indicators
+        indices_symbol_mentioned = (
+            currency in indices_symbols or 
+            any(sym in all_text for sym in indices_symbols)
+        )
+        
+        indices_name_mentioned = (
+            currency in indices_names or
+            any(name in all_text for name in indices_names)
+        )
+        
+        indices_term_mentioned = any(term in all_text for term in indices_terms)
+        
+        # Check for FX indicators
+        fx_currency_mentioned = (
+            currency in fx_currencies or 
+            any(c in all_text for c in fx_currencies)
+        )
+        
+        fx_term_mentioned = any(term in all_text for term in fx_terms)
+        
+        # Check currency pairs for additional clues
+        has_crypto_pair = False
+        has_fx_pair = False
+        has_indices_pair = False
+        
+        for pair in currency_pairs:
+            pair_str = str(pair).upper()
+            
+            # Check if pair contains crypto currency
+            if any(c in pair_str for c in crypto_currencies):
+                has_crypto_pair = True
+                
+            # Check if pair contains indices symbol or name
+            if any(sym in pair_str for sym in indices_symbols) or any(name in pair_str for name in indices_names):
+                has_indices_pair = True
+                
+            # Check if pair contains FX currency and not crypto
+            if any(c in pair_str for c in fx_currencies) and not has_crypto_pair:
+                has_fx_pair = True
+        
+        # Assign market types based on indicators, with crypto taking precedence over FX
+        # since FX currencies can be part of crypto pairs (e.g., BTC/USD)
+        
+        # Tag as crypto if:
+        # - Has clear crypto mentions or pairs
+        # - Has crypto terms
+        if crypto_currency_mentioned or has_crypto_pair or crypto_term_mentioned:
+            item['is_crypto'] = True
+            
+        # Tag as indices if:
+        # - Has clear indices mentions or pairs
+        # - Has indices terms
+        elif indices_symbol_mentioned or indices_name_mentioned or has_indices_pair or indices_term_mentioned:
+            item['is_indices'] = True
+            
+        # Tag as FX if:
+        # - Has clear FX mentions or pairs
+        # - Has FX terms
+        # - Is not already tagged as crypto or indices
+        elif (fx_currency_mentioned or has_fx_pair or fx_term_mentioned) and not (item['is_crypto'] or item['is_indices']):
+            item['is_fx'] = True
+            
+        # If still not categorized, mark as general market news
+        if not (item['is_fx'] or item['is_crypto'] or item['is_indices']):
+            item['is_market'] = True
+            
+    return news_items
+
+
+def fetch_market_specific_news(force=False):
+    """
+    Fetch news specific to the current market type.
+    
+    Args:
+        force: If True, forces a refresh regardless of cache
+    
+    Returns:
+        List of news items for the current market type
+    """
+    market_type = st.session_state.market_type
+    
+    # Determine which news cache to use
+    if market_type == 'FX':
+        news_cache_key = 'fx_news'
+        last_fetch_key = 'last_fx_news_fetch'
+    elif market_type == 'Crypto':
+        news_cache_key = 'crypto_news'
+        last_fetch_key = 'last_crypto_news_fetch'
+    else:  # Indices
+        news_cache_key = 'indices_news'
+        last_fetch_key = 'last_indices_news_fetch'
+    
+    # Check if we need to refresh
+    should_refresh = force
+    
+    if not should_refresh and last_fetch_key in st.session_state:
+        last_fetch = st.session_state.get(last_fetch_key)
+        if last_fetch is None:
+            should_refresh = True
+        elif (datetime.now() - last_fetch).total_seconds() > 300:  # 5 minutes
+            should_refresh = True
+    
+    if should_refresh:
+        # Get currencies from current subscriptions
+        subscription_currencies = list(set([sub["base"] for sub in st.session_state.subscriptions] +
+                                      [sub["quote"] for sub in st.session_state.subscriptions]))
+        
+        # Fetch news using market-specific approach
+        if market_type == 'FX':
+            # For FX, filter out crypto currencies
+            fx_currencies = [c for c in subscription_currencies if c not in 
+                           ['BTC', 'ETH', 'XRP', 'SOL', 'BNB', 'ADA', 'DOGE', 'DOT']]
+            news_items = fetch_news(fx_currencies, force=True)
+        elif market_type == 'Crypto':
+            # For crypto, specifically target crypto currencies
+            crypto_currencies = [c for c in subscription_currencies if c in 
+                               ['BTC', 'ETH', 'XRP', 'SOL', 'BNB', 'ADA', 'DOGE', 'DOT']]
+            news_items = fetch_news(crypto_currencies, force=True)
+        else:  # Indices
+            indices_list = [sub["base"] for sub in st.session_state.subscriptions]
+            news_items = fetch_indices_news(indices_list, force=True)
+        
+        # Return the fetched news
+        return news_items
+    
+    # If no refresh needed, return the cached news
+    return st.session_state.get(news_cache_key, [])
+
+
+
+def display_news_sidebar():
+    with col5:  # Assuming col5 is already defined
+        # Dynamic header based on market type
+        if st.session_state.market_type == 'FX':
+            st.header("Currency News")
+        elif st.session_state.market_type == 'Crypto':
+            st.header("Crypto Market News")
+        else:  # Indices
+            st.header("Market News")
+            
+        # Filter controls
+        sentiment_filter = st.selectbox(
+            "Filter by sentiment using Finbert-Tone AI Model",
+            options=["All News", "Positive", "Negative", "Neutral", "Important Only"]
+        )
+
+        # Get currencies from subscriptions
+        subscription_currencies = list(set([sub["base"] for sub in st.session_state.subscriptions] +
+                                    [sub["quote"] for sub in st.session_state.subscriptions]))
+
+        market_type = st.session_state.market_type  # Get the current market type
+        
+        # Initialize market-specific news cache keys if they don't exist
+        if 'fx_news' not in st.session_state:
+            st.session_state.fx_news = []
+            
+        if 'crypto_news' not in st.session_state:
+            st.session_state.crypto_news = []
+            
+        if 'indices_news' not in st.session_state:
+            st.session_state.indices_news = []
+            
+        if 'last_fx_news_fetch' not in st.session_state:
+            st.session_state.last_fx_news_fetch = None
+            
+        if 'last_crypto_news_fetch' not in st.session_state:
+            st.session_state.last_crypto_news_fetch = None
+            
+        if 'last_indices_news_fetch' not in st.session_state:
+            st.session_state.last_indices_news_fetch = None
+
+        current_time = datetime.now()
+        should_refresh_news = False
+        
+        # Use market-specific cache keys
+        if market_type == 'FX':
+            news_cache_key = 'fx_news'
+            last_fetch_key = 'last_fx_news_fetch'
+            next_refresh_key = 'next_fx_news_refresh_time'
+        elif market_type == 'Crypto':
+            news_cache_key = 'crypto_news'
+            last_fetch_key = 'last_crypto_news_fetch'
+            next_refresh_key = 'next_crypto_news_refresh_time'
+        else:  # Indices
+            news_cache_key = 'indices_news'
+            last_fetch_key = 'last_indices_news_fetch'
+            next_refresh_key = 'next_indices_news_refresh_time'
+        
+        # Initialize the next refresh time if it doesn't exist
+        if next_refresh_key not in st.session_state:
+            st.session_state[next_refresh_key] = current_time
+        
+        # Only refresh news if we meet certain conditions
+        if st.session_state[last_fetch_key] is None:
+            should_refresh_news = True
+            reason = f"Initial {market_type} fetch"
+            # Set the next refresh time
+            st.session_state[next_refresh_key] = current_time + timedelta(seconds=300)
+        elif not st.session_state[news_cache_key]:
+            should_refresh_news = True
+            reason = f"No cached {market_type} news"
+            # Set the next refresh time
+            st.session_state[next_refresh_key] = current_time + timedelta(seconds=300)
+        elif current_time >= st.session_state[next_refresh_key]:
+            should_refresh_news = True
+            reason = f"Scheduled 5-minute {market_type} refresh"
+            # Schedule the next refresh
+            st.session_state[next_refresh_key] = current_time + timedelta(seconds=300)
+        elif st.session_state.refresh_news_clicked:
+            should_refresh_news = True
+            reason = f"Manual {market_type} refresh"
+            # Schedule the next refresh
+            st.session_state[next_refresh_key] = current_time + timedelta(seconds=300)
+            # Reset the flag
+            st.session_state.refresh_news_clicked = False
+            
+        # Fetch news if needed
+        if should_refresh_news:
+            # Add notification to make refresh visible
+            add_notification(f"Refreshing {market_type} news: {reason}", "info")
+            
+            # Fetch new news
+            news_items = fetch_news(subscription_currencies, force=(reason == f"Manual {market_type} refresh"))
+        else:
+            # Use the market-specific cached news
+            news_items = st.session_state.get(news_cache_key, [])
+            
+        # Add a small caption showing when news was last updated
+        if st.session_state[last_fetch_key]:
+            time_diff = current_time - st.session_state[last_fetch_key]
+            if time_diff.seconds < 60:
+                update_text = "just now"
+            elif time_diff.seconds < 3600:
+                update_text = f"{time_diff.seconds // 60} minutes ago"
+            else:
+                update_text = f"{time_diff.seconds // 3600} hours ago"
+            st.caption(f"{market_type} news last updated: {update_text}")
+
+        # Apply market-specific filtering to news items
+        if market_type == 'FX':
+            # Filter out any crypto news that might have slipped through
+            news_items = [item for item in news_items if not (
+                any(c in item.get('title', '').upper() for c in ['BTC', 'ETH', 'BITCOIN', 'ETHEREUM', 'CRYPTO']) or
+                any(c in item.get('summary', '').upper() for c in ['BTC', 'ETH', 'BITCOIN', 'ETHEREUM', 'CRYPTO'])
+            )]
+        
+        elif market_type == 'Crypto':
+            # Ensure we have crypto-related news
+            crypto_terms = ['CRYPTO', 'BTC', 'ETH', 'BITCOIN', 'ETHEREUM', 'BLOCKCHAIN', 'TOKEN', 'COIN', 'CRYPTOCURRENCY']
+            
+            # Get news specifically tagged for crypto plus general market news
+            crypto_news = [item for item in news_items if 
+                          (item.get('is_crypto', False) or
+                           any(c in item.get('title', '').upper() for c in crypto_terms) or
+                           any(c in item.get('summary', '').upper() for c in crypto_terms) or
+                           item.get('currency', '') == 'Market')]
+            
+            # Use filtered crypto news
+            news_items = crypto_news
+            
+            # Sort by timestamp
+            news_items.sort(key=lambda x: x.get('timestamp', datetime.now()), reverse=True)
+
+        # Apply sentiment filter
+        if sentiment_filter != "All News":
+            if sentiment_filter == "Important Only":
+                # Filter for news with strong sentiment (positive or negative)
+                news_items = [item for item in news_items if abs(item.get("score", 0)) > 0.5]
+            else:
+                sentiment_map = {"Positive": "positive", "Negative": "negative", "Neutral": "neutral"}
+                filter_sentiment = sentiment_map.get(sentiment_filter, "neutral")
+                
+                # Include items that match the filter OR items without sentiment if filter is "Neutral"
+                if filter_sentiment == "neutral":
+                    news_items = [item for item in news_items if 
+                                item.get("sentiment", "neutral") == filter_sentiment or
+                                "sentiment" not in item or
+                                not item.get("sentiment") or
+                                item.get("score", 0) == 0]
+                else:
+                    news_items = [item for item in news_items if item.get("sentiment", "neutral") == filter_sentiment]
+
+        # Display news items
+        if news_items:
+            # Filter news to show only items relevant to current subscriptions
+            subscription_pairs = set()
+            for sub in st.session_state.subscriptions:
+                pair = f"{sub['base']}/{sub['quote']}"
+                subscription_pairs.add(pair)
+                
+                # For indices in Indices mode, add their proper names too
+                if st.session_state.market_type == 'Indices' and sub['base'].startswith('^'):
+                    indices_names = {
+                        '^DJI': 'Dow Jones',
+                        '^GSPC': 'S&P 500',
+                        '^IXIC': 'NASDAQ',
+                        '^FTSE': 'FTSE 100',
+                        '^GDAXI': 'DAX',
+                        '^FCHI': 'CAC 40',
+                        '^N225': 'Nikkei 225',
+                    }
+                    if sub['base'] in indices_names:
+                        subscription_pairs.add(indices_names[sub['base']])
+                # For FX mode, add individual currencies if not indices
+                elif st.session_state.market_type == 'FX':
+                    if not sub['base'].startswith('^'):
+                        subscription_pairs.add(sub['base'])
+                        subscription_pairs.add(sub['quote'])
+
+            # Include market news (general news)
+            subscription_pairs.add("Market")
+
+            # Filter news to show only items relevant to current subscriptions
+            filtered_news = []
+            for item in news_items:
+                currency = item.get('currency', '')
+                currency_pairs = item.get('currency_pairs', set()) if isinstance(item.get('currency_pairs'), set) else set()
+                
+                # Additional market-type filtering
+                # For FX market, filter out crypto news
+                if st.session_state.market_type == 'FX':
+                    # Skip crypto-related news
+                    crypto_currencies = {'BTC', 'ETH', 'XRP', 'SOL', 'BNB', 'ADA', 'DOGE', 'BITCOIN', 'ETHEREUM'}
+                    if (currency in crypto_currencies or 
+                        any(crypto in str(pair).upper() for crypto in crypto_currencies for pair in currency_pairs)):
+                        continue
+                
+                # Include if currency matches any subscription
+                if currency in subscription_pairs:
+                    filtered_news.append(item)
+                # Include if any currency pair matches
+                elif any(pair in subscription_pairs for pair in currency_pairs):
+                    filtered_news.append(item)
+                # Include market news
+                elif currency == "Market" or "Market" in currency_pairs:
+                    filtered_news.append(item)
+            
+            # Display the filtered news
+            if filtered_news:
+                display_news_items(filtered_news)
+            else:
+                st.info("No news items match your filters")
+        else:
+            st.info("No news items match your filters")
+
+
 # Add the fetch_news function to your main app since it depends on st.session_state
 def fetch_news(currencies=None, use_mock_fallback=True, force=False):
     """Fetch news for currency pairs, with prioritization of local disk cache."""
@@ -1748,10 +2556,32 @@ def fetch_news(currencies=None, use_mock_fallback=True, force=False):
     if force and 'disk_news_loaded' in st.session_state:
         st.session_state.disk_news_loaded = False
         
-    # NEW: First check if we have news on disk to display immediately
+    # First check if we have news on disk to display immediately
     show_disk_news = ('disk_news_loaded' not in st.session_state or 
                       not st.session_state.disk_news_loaded or 
                       force)
+    
+    # Store any previously cached news to avoid losing items
+    existing_cached_news = []
+    if 'cached_news' in st.session_state and st.session_state.cached_news:
+        existing_cached_news = st.session_state.cached_news.copy()
+    
+    # Get the appropriate news cache key based on market type
+    market_type = st.session_state.market_type
+    if market_type == 'FX':
+        news_cache_key = 'fx_news'
+        last_fetch_key = 'last_fx_news_fetch'
+    elif market_type == 'Crypto':
+        news_cache_key = 'crypto_news'
+        last_fetch_key = 'last_crypto_news_fetch'
+    else:  # Indices
+        news_cache_key = 'indices_news'
+        last_fetch_key = 'last_indices_news_fetch'
+    
+    # Also retrieve market-specific cached news if available
+    market_cached_news = []
+    if news_cache_key in st.session_state and st.session_state[news_cache_key]:
+        market_cached_news = st.session_state[news_cache_key].copy()
     
     if show_disk_news:
         # Make spinner explicitly visible
@@ -1760,7 +2590,51 @@ def fetch_news(currencies=None, use_mock_fallback=True, force=False):
             add_notification("Checking for news files in fx_news/scrapers/news/yahoo/", "info")
             
             # Try to load news from disk
-            disk_news = load_news_from_disk(currency_pairs)
+            disk_news = []
+            
+            # Process each currency pair individually
+            for base, quote in currency_pairs:
+                symbol = f"{base}_{quote}"
+                pair_disk_news = load_news_from_files(symbol, max_days_old=7)
+                
+                # Add to our collection, avoiding duplicates by URL or timestamp
+                for news_item in pair_disk_news:
+                    # Create a unique identifier for the news item
+                    item_id = None
+                    if news_item.get('url'):
+                        item_id = news_item.get('url')
+                    elif news_item.get('unix_timestamp'):
+                        item_id = f"{news_item.get('unix_timestamp')}_{news_item.get('title', '')}"
+                    else:
+                        item_id = news_item.get('title', '')
+                    
+                    # Only add if not already in disk_news
+                    if item_id and not any(
+                        (n.get('url') == item_id) or 
+                        (n.get('unix_timestamp') == news_item.get('unix_timestamp') and 
+                         n.get('title') == news_item.get('title', ''))
+                        for n in disk_news):
+                        disk_news.append(news_item)
+            
+            # For market news (general news not tied to a specific pair)
+            market_news = load_news_from_files('market_news', max_days_old=7)
+            for news_item in market_news:
+                # Create a unique identifier for the news item
+                item_id = None
+                if news_item.get('url'):
+                    item_id = news_item.get('url')
+                elif news_item.get('unix_timestamp'):
+                    item_id = f"{news_item.get('unix_timestamp')}_{news_item.get('title', '')}"
+                else:
+                    item_id = news_item.get('title', '')
+                
+                # Only add if not already in disk_news
+                if item_id and not any(
+                    (n.get('url') == item_id) or 
+                    (n.get('unix_timestamp') == news_item.get('unix_timestamp') and 
+                     n.get('title') == news_item.get('title', ''))
+                    for n in disk_news):
+                    disk_news.append(news_item)
             
             # Report what we found
             if disk_news:
@@ -1771,58 +2645,221 @@ def fetch_news(currencies=None, use_mock_fallback=True, force=False):
             if disk_news and len(disk_news) > 0:
                 # Always use disk news on first load, regardless of pair coverage
                 st.success(f"Found {len(disk_news)} news articles on disk. Displaying these while fetching latest news.")
-                st.session_state.cached_news = disk_news
+                
+                # CHANGE: Merge with existing cached news to avoid losing items
+                all_news = []
+                seen_ids = set()
+                
+                # Add existing cached news first (both general and market-specific)
+                for news_sources in [existing_cached_news, market_cached_news]:
+                    for item in news_sources:
+                        item_id = None
+                        if item.get('url'):
+                            item_id = item.get('url')
+                        elif item.get('unix_timestamp'):
+                            item_id = f"{item.get('unix_timestamp')}_{item.get('title', '')}"
+                        else:
+                            item_id = item.get('title', '')
+                            
+                        if item_id and item_id not in seen_ids:
+                            all_news.append(item)
+                            seen_ids.add(item_id)
+                
+                # Then add disk news, avoiding duplicates
+                for item in disk_news:
+                    item_id = None
+                    if item.get('url'):
+                        item_id = item.get('url')
+                    elif item.get('unix_timestamp'):
+                        item_id = f"{item.get('unix_timestamp')}_{item.get('title', '')}"
+                    else:
+                        item_id = item.get('title', '')
+                        
+                    if item_id and item_id not in seen_ids:
+                        all_news.append(item)
+                        seen_ids.add(item_id)
+                
+                # Sort by timestamp (newest first)
+                all_news.sort(key=lambda x: x.get('timestamp', datetime.now()), reverse=True)
+                
+                # Tag news by market type
+                tagged_news = tag_news_by_market_type(all_news)
+                
+                # Separate news based on market type
+                fx_news = [item for item in tagged_news if item.get('is_fx', False)]
+                crypto_news = [item for item in tagged_news if item.get('is_crypto', False)]
+                indices_news = [item for item in tagged_news if item.get('is_indices', False)]
+                market_news = [item for item in tagged_news if 
+                              item.get('is_market', False) or
+                              not (item.get('is_fx', False) or 
+                                   item.get('is_crypto', False) or 
+                                   item.get('is_indices', False))]
+                
+                # Add market news to all categories
+                for market_item in market_news:
+                    if market_item not in fx_news:
+                        fx_news.append(market_item)
+                    if market_item not in crypto_news:
+                        crypto_news.append(market_item)
+                    if market_item not in indices_news:
+                        indices_news.append(market_item)
+                
+                # Store in appropriate caches
+                st.session_state.fx_news = sorted(fx_news, key=lambda x: x.get('timestamp', datetime.now()), reverse=True)
+                st.session_state.crypto_news = sorted(crypto_news, key=lambda x: x.get('timestamp', datetime.now()), reverse=True)
+                st.session_state.indices_news = sorted(indices_news, key=lambda x: x.get('timestamp', datetime.now()), reverse=True)
+                
+                # Update timestamps
+                st.session_state.last_fx_news_fetch = datetime.now()
+                st.session_state.last_crypto_news_fetch = datetime.now()
+                st.session_state.last_indices_news_fetch = datetime.now()
+                
+                # Set cached_news based on current market type
+                if market_type == 'FX':
+                    st.session_state.cached_news = st.session_state.fx_news
+                elif market_type == 'Crypto':
+                    st.session_state.cached_news = st.session_state.crypto_news
+                else:  # Indices
+                    st.session_state.cached_news = st.session_state.indices_news
+                
                 st.session_state.disk_news_loaded = True
                 
                 # Schedule a background refresh for new news after a delay
                 st.session_state.last_news_fetch = datetime.now() - timedelta(seconds=50)  # Set to refresh soon
                 st.session_state.next_news_refresh_time = datetime.now() + timedelta(seconds=5)
                 
-                # Return the disk news immediately
-                return disk_news
+                # Return the appropriate news for the current market type
+                if market_type == 'FX':
+                    return st.session_state.fx_news
+                elif market_type == 'Crypto':
+                    return st.session_state.crypto_news
+                else:  # Indices
+                    return st.session_state.indices_news
 
     st.session_state.debug_log.append(f"Attempting to fetch news for {len(currency_pairs)} currency pairs")
 
     try:
         with st.spinner("Fetching latest news from Yahoo Finance..."):
-            all_news_items = []
+            all_news = []
             for base, quote in currency_pairs:
-                news_items = scrape_yahoo_finance_news(
-                    [(base, quote)], 
-                    debug_log=st.session_state.debug_log,
-                    analyze_sentiment_now=False  # Set to False for faster scraping
-                )
-                for item in news_items:
-                    item["currency_pairs"] = {f"{base}/{quote}"}
+                try:
+                    news_items = scrape_yahoo_finance_news(
+                        [(base, quote)], 
+                        debug_log=st.session_state.debug_log,
+                        analyze_sentiment_now=False  # Set to False for faster scraping
+                    )
                     
-                    # Ensure all news items have default sentiment values
-                    if 'sentiment' not in item:
-                        item['sentiment'] = 'neutral'
-                    if 'score' not in item:
-                        item['score'] = 0.0
+                    for item in news_items:
+                        item["currency_pairs"] = {f"{base}/{quote}"}
                         
-                    all_news_items.append(item)
+                        # Ensure all news items have default sentiment values
+                        if 'sentiment' not in item:
+                            item['sentiment'] = 'neutral'
+                        if 'score' not in item:
+                            item['score'] = 0.0
+                            
+                        all_news.append(item)
+                except Exception as e:
+                    st.session_state.debug_log.append(f"Error fetching news for {base}/{quote}: {str(e)}")
+                    # Continue with other pairs
 
-            if all_news_items:
+            if all_news:
+                # Deduplicate by URL or title
                 unique_news = {}
-                for item in all_news_items:
+                for item in all_news:
                     key = item.get('url', '') if item.get('url') else item.get('title', '')
                     if key:
                         if key in unique_news:
+                            # Merge currency pairs for duplicate items
                             unique_news[key]['currency_pairs'].update(item['currency_pairs'])
                         else:
                             unique_news[key] = item
 
                 deduplicated_news = list(unique_news.values())
-                deduplicated_news.sort(key=lambda x: x["timestamp"], reverse=True)
-
-                add_notification(f"Successfully fetched {len(deduplicated_news)} unique news items from Yahoo Finance", "success")
-                st.session_state.last_news_fetch = datetime.now()
-                st.session_state.cached_news = deduplicated_news
-                st.session_state.disk_news_loaded = True  # Mark that we've loaded news
                 
-                # Always run background sentiment analysis, but optimize for performance
-                if deduplicated_news:
+                # Merge with existing cached news
+                merged_news = []
+                seen_ids = set()
+                
+                # Add existing cached news first (both general and market-specific)
+                for news_sources in [existing_cached_news, market_cached_news]:
+                    for item in news_sources:
+                        item_id = None
+                        if item.get('url'):
+                            item_id = item.get('url')
+                        elif item.get('unix_timestamp'):
+                            item_id = f"{item.get('unix_timestamp')}_{item.get('title', '')}"
+                        else:
+                            item_id = item.get('title', '')
+                            
+                        if item_id and item_id not in seen_ids:
+                            merged_news.append(item)
+                            seen_ids.add(item_id)
+                
+                # Then add new items, avoiding duplicates
+                for item in deduplicated_news:
+                    item_id = None
+                    if item.get('url'):
+                        item_id = item.get('url')
+                    elif item.get('unix_timestamp'):
+                        item_id = f"{item.get('unix_timestamp')}_{item.get('title', '')}"
+                    else:
+                        item_id = item.get('title', '')
+                        
+                    if item_id and item_id not in seen_ids:
+                        merged_news.append(item)
+                        seen_ids.add(item_id)
+                
+                # Sort by timestamp (newest first)
+                merged_news.sort(key=lambda x: x.get('timestamp', datetime.now()), reverse=True)
+
+                add_notification(f"Successfully fetched and merged news items, total: {len(merged_news)}", "success")
+                
+                # Tag news by market type
+                tagged_news = tag_news_by_market_type(merged_news)
+                
+                # Separate news based on market type
+                fx_news = [item for item in tagged_news if item.get('is_fx', False)]
+                crypto_news = [item for item in tagged_news if item.get('is_crypto', False)]
+                indices_news = [item for item in tagged_news if item.get('is_indices', False)]
+                market_news = [item for item in tagged_news if 
+                              item.get('is_market', False) or
+                              not (item.get('is_fx', False) or 
+                                   item.get('is_crypto', False) or 
+                                   item.get('is_indices', False))]
+                
+                # Add market news to all categories
+                for market_item in market_news:
+                    if market_item not in fx_news:
+                        fx_news.append(market_item)
+                    if market_item not in crypto_news:
+                        crypto_news.append(market_item)
+                    if market_item not in indices_news:
+                        indices_news.append(market_item)
+                
+                # Store in appropriate caches
+                st.session_state.fx_news = sorted(fx_news, key=lambda x: x.get('timestamp', datetime.now()), reverse=True)
+                st.session_state.crypto_news = sorted(crypto_news, key=lambda x: x.get('timestamp', datetime.now()), reverse=True)
+                st.session_state.indices_news = sorted(indices_news, key=lambda x: x.get('timestamp', datetime.now()), reverse=True)
+                
+                # Update timestamps
+                st.session_state.last_fx_news_fetch = datetime.now()
+                st.session_state.last_crypto_news_fetch = datetime.now()
+                st.session_state.last_indices_news_fetch = datetime.now()
+                st.session_state.last_news_fetch = datetime.now()
+                
+                # Set cached_news based on current market type
+                if market_type == 'FX':
+                    st.session_state.cached_news = st.session_state.fx_news
+                elif market_type == 'Crypto':
+                    st.session_state.cached_news = st.session_state.crypto_news
+                else:  # Indices
+                    st.session_state.cached_news = st.session_state.indices_news
+                
+                st.session_state.disk_news_loaded = True
+                
+                # Schedule background sentiment analysis
+                if 'run_background_sentiment' in st.session_state and st.session_state.run_background_sentiment:
                     # Use threading to run sentiment analysis in background
                     import threading
                     from fx_news.scrapers.news_scraper import analyze_sentiment
@@ -1837,124 +2874,37 @@ def fetch_news(currencies=None, use_mock_fallback=True, force=False):
                         thread_logger.addHandler(handler)
                         thread_logger.setLevel(logging.INFO)
                     
-                    # Save necessary variables as local copies for the thread
-                    news_folder = "fx_news/scrapers/news/yahoo"
-                    api_key = '1i1PR8oSJwazWAyOj3iXiRoiCThZI6qj'
+                    # Find items without sentiment
+                    items_needing_sentiment = [
+                        item for item in merged_news 
+                        if 'sentiment' not in item or not item['sentiment'] or 
+                        (item.get('sentiment') == 'neutral' and item.get('score', 0) == 0.0)
+                    ]
                     
-                    def background_sentiment_task():
-                        try:
-                            # Find items without sentiment or with default neutral/0.0 values
-                            items_needing_sentiment = [
-                                item for item in deduplicated_news 
-                                if 'sentiment' not in item or not item['sentiment'] or 
-                                (item.get('sentiment') == 'neutral' and item.get('score', 0) == 0.0)
-                            ]
-                            
-                            # Limit to processing just a few items at a time for better performance
-                            max_items_per_batch = 3  # Reduced to 3 for better performance
-                            items_to_process = items_needing_sentiment[:max_items_per_batch]
-                            
-                            if items_to_process:
-                                thread_logger.info(f"Starting background sentiment analysis for {len(items_to_process)}/{len(items_needing_sentiment)} articles")
-                                
-                                # Process each item and update both the item and file
-                                for i, item in enumerate(items_to_process):
-                                    try:
-                                        # Find the file path
-                                        file_path = None
-                                        
-                                        # Try to get file_path from item if it exists
-                                        if 'file_path' in item and item['file_path'] and os.path.exists(item['file_path']):
-                                            file_path = item['file_path']
-                                        # Otherwise try to find it based on timestamp and currency
-                                        elif 'unix_timestamp' in item and 'currency' in item:
-                                            timestamp = item['unix_timestamp']
-                                            currency = item['currency'].replace('/', '_').lower()
-                                            potential_path = os.path.join(news_folder, f"article_{timestamp}_{currency}.txt")
-                                            
-                                            if os.path.exists(potential_path):
-                                                file_path = potential_path
-                                                thread_logger.info(f"Found file path based on timestamp and currency: {file_path}")
-                                            else:
-                                                # Try pattern matching
-                                                pattern = os.path.join(news_folder, f"article_{timestamp}_*.txt")
-                                                matching_files = glob.glob(pattern)
-                                                if matching_files:
-                                                    file_path = matching_files[0]
-                                                    thread_logger.info(f"Found file path based on timestamp pattern: {file_path}")
-                                        
-                                        if not file_path:
-                                            thread_logger.warning(f"Could not find file for article: {item.get('title', 'Unknown')}")
-                                            continue
-                                        
-                                        # Read file content
-                                        with open(file_path, 'r', encoding='utf-8') as f:
-                                            content = f.read()
-                                        
-                                        # Extract title and summary
-                                        title_match = re.search(r'^# (.+)$', content, re.MULTILINE)
-                                        title = title_match.group(1).strip() if title_match else item.get('title', '')
-                                        
-                                        summary_match = re.search(r'SUMMARY:\s(.*?)(?:\n\n|\Z)', content, re.DOTALL)
-                                        summary = summary_match.group(1).strip() if summary_match else ''
-                                        
-                                        # Analyze sentiment
-                                        text_for_sentiment = f"{title} {summary}"
-                                        thread_logger.info(f"Analyzing sentiment for {title}")
-                                        sentiment_label, sentiment_score = analyze_sentiment(
-                                            text_for_sentiment, 
-                                            mode='ensemble', 
-                                            api_key=api_key
-                                        )
-                                        thread_logger.info(f"Sentiment result: {sentiment_label} ({sentiment_score})")
-                                        
-                                        # Update item in memory
-                                        item['sentiment'] = sentiment_label
-                                        item['score'] = sentiment_score
-                                        
-                                        # Check if file already has sentiment markers
-                                        has_sentiment_markers = '---\nSENTIMENT:' in content
-                                        
-                                        # Update the file
-                                        if has_sentiment_markers:
-                                            # Replace existing markers
-                                            new_content = re.sub(
-                                                r'---\nSENTIMENT:.*?\nSCORE:.*?(?=\n\n|\Z)', 
-                                                f"---\nSENTIMENT: {sentiment_label}\nSCORE: {sentiment_score}", 
-                                                content, 
-                                                flags=re.DOTALL
-                                            )
-                                            with open(file_path, 'w', encoding='utf-8') as f:
-                                                f.write(new_content)
-                                            thread_logger.info(f"Updated existing sentiment markers in {os.path.basename(file_path)}")
-                                        else:
-                                            # Append new markers
-                                            with open(file_path, 'a', encoding='utf-8') as f:
-                                                f.write(f"\n\n---\nSENTIMENT: {sentiment_label}\nSCORE: {sentiment_score}\n")
-                                            thread_logger.info(f"Added new sentiment markers to {os.path.basename(file_path)}")
-                                        
-                                        # Add longer delay between API requests to reduce load
-                                        if i < len(items_to_process) - 1:
-                                            time.sleep(1.5)  # 1.5 second delay
-                                            
-                                    except Exception as e:
-                                        thread_logger.error(f"Error updating sentiment for article: {str(e)}")
-                                
-                            else:
-                                thread_logger.info("No articles need sentiment analysis")
-                                
-                        except Exception as e:
-                            # Log any errors from the thread
-                            thread_logger.error(f"Error in background sentiment task: {str(e)}")
-                    
-                    # Start the background thread with a longer delay
-                    sentiment_thread = threading.Thread(target=background_sentiment_task)
-                    sentiment_thread.daemon = True  # Allow app to exit even if thread is running
-                    # Add a longer delay before starting the thread to let main UI render completely
-                    time.sleep(1.0)  # Increased delay
-                    sentiment_thread.start()
+                    if items_needing_sentiment:
+                        def background_sentiment_task():
+                            # Analyze sentiment for items without it
+                            try:
+                                analyze_news_sentiment(
+                                    items_needing_sentiment[:3],
+                                    api_key='1i1PR8oSJwazWAyOj3iXiRoiCThZI6qj'
+                                )
+                            except Exception as e:
+                                thread_logger.error(f"Error in sentiment analysis: {str(e)}")
+                        
+                        # Start the background thread
+                        sentiment_thread = threading.Thread(target=background_sentiment_task)
+                        sentiment_thread.daemon = True
+                        sentiment_thread.start()
                 
-                return deduplicated_news
+                # Return the appropriate news for the current market type
+                if market_type == 'FX':
+                    return st.session_state.fx_news
+                elif market_type == 'Crypto':
+                    return st.session_state.crypto_news
+                else:  # Indices
+                    return st.session_state.indices_news
+                    
             else:
                 if isinstance(st.session_state.debug_log, list):
                     st.session_state.debug_log.append("No news items found from Yahoo Finance")
@@ -1963,14 +2913,61 @@ def fetch_news(currencies=None, use_mock_fallback=True, force=False):
             st.session_state.debug_log.append(f"Error fetching news from Yahoo Finance: {str(e)}")
         add_notification(f"Error fetching news from Yahoo Finance: {str(e)}", "error")
 
+    # If we got here, return whatever news we might have for the current market type
+    if market_type == 'FX' and 'fx_news' in st.session_state and st.session_state.fx_news:
+        return st.session_state.fx_news
+    elif market_type == 'Crypto' and 'crypto_news' in st.session_state and st.session_state.crypto_news:
+        return st.session_state.crypto_news
+    elif market_type == 'Indices' and 'indices_news' in st.session_state and st.session_state.indices_news:
+        return st.session_state.indices_news
+    elif 'cached_news' in st.session_state and st.session_state.cached_news:
+        return st.session_state.cached_news
+    
+    # As a last resort, use mock news
     if use_mock_fallback:
         add_notification("Using mock news data as fallback", "info")
-        return create_mock_news(currencies)
-
-    if 'cached_news' in st.session_state and st.session_state.cached_news:
-        return st.session_state.cached_news
+        mock_news = create_mock_news(currencies)
+        
+        # Tag and categorize mock news
+        tagged_mock_news = tag_news_by_market_type(mock_news)
+        
+        # Separate mock news based on market type
+        fx_mock_news = [item for item in tagged_mock_news if item.get('is_fx', False)]
+        crypto_mock_news = [item for item in tagged_mock_news if item.get('is_crypto', False)]
+        indices_mock_news = [item for item in tagged_mock_news if item.get('is_indices', False)]
+        market_mock_news = [item for item in tagged_mock_news if 
+                          item.get('is_market', False) or
+                          not (item.get('is_fx', False) or 
+                               item.get('is_crypto', False) or 
+                               item.get('is_indices', False))]
+        
+        # Add market news to all categories
+        for market_item in market_mock_news:
+            if market_item not in fx_mock_news:
+                fx_mock_news.append(market_item)
+            if market_item not in crypto_mock_news:
+                crypto_mock_news.append(market_item)
+            if market_item not in indices_mock_news:
+                indices_mock_news.append(market_item)
+        
+        # Store in appropriate caches
+        st.session_state.fx_news = sorted(fx_mock_news, key=lambda x: x.get('timestamp', datetime.now()), reverse=True)
+        st.session_state.crypto_news = sorted(crypto_mock_news, key=lambda x: x.get('timestamp', datetime.now()), reverse=True)
+        st.session_state.indices_news = sorted(indices_mock_news, key=lambda x: x.get('timestamp', datetime.now()), reverse=True)
+        
+        # Set cached_news based on current market type
+        if market_type == 'FX':
+            st.session_state.cached_news = st.session_state.fx_news
+            return st.session_state.fx_news
+        elif market_type == 'Crypto':
+            st.session_state.cached_news = st.session_state.crypto_news
+            return st.session_state.crypto_news
+        else:  # Indices
+            st.session_state.cached_news = st.session_state.indices_news
+            return st.session_state.indices_news
 
     return []
+
 
 def load_news_from_disk(currency_pairs):
     """
@@ -1980,27 +2977,32 @@ def load_news_from_disk(currency_pairs):
         currency_pairs: List of (base, quote) tuples
     
     Returns:
-        List of news items loaded from disk
+        List of news items loaded from disk that match current subscriptions
     """
     news_folder = "fx_news/scrapers/news/yahoo"
     all_news = []
     
     try:
         # Print debug info about the directory we're looking in
-        print(f"Looking for news files in {news_folder}")
+        logger.info(f"Looking for news files in {news_folder}")
         
         # Check if directory exists
         if not os.path.exists(news_folder):
-            print(f"Warning: News folder {news_folder} does not exist")
+            logger.warning(f"Warning: News folder {news_folder} does not exist")
             return []
             
         # List all files in the directory to debug
         all_files = os.listdir(news_folder)
-        print(f"All files in directory: {all_files}")
+        logger.info(f"All files in directory: {all_files}")
+        
+        # Extract the current subscription bases and quotes for matching
+        subscription_bases = [base.lower() for base, _ in currency_pairs]
+        subscription_quotes = [quote.lower() for _, quote in currency_pairs]
+        subscription_pairs = [(base.lower(), quote.lower()) for base, quote in currency_pairs]
         
         # Look for all .txt files in the news folder
         article_files = glob.glob(os.path.join(news_folder, "article_*.txt"))
-        print(f"Found {len(article_files)} article files matching pattern")
+        logger.info(f"Found {len(article_files)} article files matching pattern")
         
         if not article_files:
             return []
@@ -2013,24 +3015,24 @@ def load_news_from_disk(currency_pairs):
                 
                 # Extract timestamp from filename using regex
                 filename = os.path.basename(file_path)
-                print(f"Processing file: {filename}")
+                logger.info(f"Processing file: {filename}")
                 
                 timestamp_match = re.search(r'article_([0-9]+)_', filename)
                 if not timestamp_match:
-                    print(f"Could not extract timestamp from filename {filename}")
+                    logger.warning(f"Could not extract timestamp from filename {filename}")
                     # Use file modification time as fallback
                     timestamp = datetime.fromtimestamp(os.path.getmtime(file_path))
-                    print(f"Using file modification time: {timestamp}")
+                    logger.warning(f"Using file modification time: {timestamp}")
                 else:
                     timestamp_str = timestamp_match.group(1)
                     try:
                         timestamp = datetime.fromtimestamp(int(timestamp_str))
-                        print(f"Extracted timestamp: {timestamp}")
+                        logger.info(f"Extracted timestamp: {timestamp}")
                     except ValueError as e:
-                        print(f"Error converting timestamp {timestamp_str}: {e}")
+                        logger.warning(f"Error converting timestamp {timestamp_str}: {e}")
                         # If timestamp conversion fails, use file modification time
                         timestamp = datetime.fromtimestamp(os.path.getmtime(file_path))
-                        print(f"Using file modification time: {timestamp}")
+                        logger.warning(f"Using file modification time: {timestamp}")
                 
                 # Extract title from content
                 title_match = re.search(r'^# (.+)$', content, re.MULTILINE)
@@ -2046,40 +3048,73 @@ def load_news_from_disk(currency_pairs):
                 
                 # Extract currency pair from filename or make an educated guess
                 currency_pairs_set = set()
+                matched_to_subscription = False
                 
                 # First try to extract directly from filename
                 filename_lower = os.path.basename(file_path).lower()
-                currency_pattern = re.search(r'article_\d+_([a-z]+)_([a-z]+)\.txt', filename_lower)
-                if currency_pattern:
-                    extracted_base = currency_pattern.group(1)
-                    extracted_quote = currency_pattern.group(2)
-                    print(f"Extracted from filename: {extracted_base}/{extracted_quote}")
-                    # Normalize the case to match available currencies
-                    for base, quote in currency_pairs:
-                        if base.lower() == extracted_base and quote.lower() == extracted_quote:
-                            currency_pairs_set.add(f"{base}/{quote}")
-                            print(f"Matched to subscription pair: {base}/{quote}")
                 
-                # If no direct match, try other approaches
+                # Check for index pattern first
+                index_pattern = re.search(r'article_\d+_([a-z]+)\.txt', filename_lower)
+                if index_pattern:
+                    index_ticker = index_pattern.group(1)
+                    
+                    # Map of common index tickers to their symbol format
+                    index_mapping = {
+                        'dji': '^DJI',
+                        'gspc': '^GSPC',
+                        'ixic': '^IXIC',
+                        'ftse': '^FTSE',
+                        'gdaxi': '^GDAXI',
+                        'fchi': '^FCHI',
+                        'n225': '^N225'
+                    }
+                    
+                    # If we find a match in our mapping
+                    if index_ticker in index_mapping:
+                        index_symbol = index_mapping[index_ticker]
+                        
+                        # Check if this index is in our current subscriptions
+                        for base, quote in currency_pairs:
+                            if base == index_symbol:
+                                # For indices, add with the quote currency
+                                currency_pairs_set.add(f"{base}/{quote}")
+                                logger.info(f"Matched index ticker {index_ticker} to {base}/{quote}")
+                                matched_to_subscription = True
+                                break
+                
+                # If not an index, check for currency pair pattern
+                if not currency_pairs_set:
+                    currency_pattern = re.search(r'article_\d+_([a-z]+)_([a-z]+)\.txt', filename_lower)
+                    if currency_pattern:
+                        extracted_base = currency_pattern.group(1).upper()
+                        extracted_quote = currency_pattern.group(2).upper()
+                        
+                        # Check if extracted pair matches any subscription
+                        for base, quote in currency_pairs:
+                            base_lower = base.lower()
+                            quote_lower = quote.lower()
+                            if base_lower == extracted_base.lower() and quote_lower == extracted_quote.lower():
+                                currency_pairs_set.add(f"{base}/{quote}")
+                                logger.info(f"Matched to subscription pair: {base}/{quote}")
+                                matched_to_subscription = True
+                                break
+                
+                # If no direct match so far, try content-based matching
                 if not currency_pairs_set:
                     for base, quote in currency_pairs:
-                        # Check if this currency pair is mentioned in the filename
-                        pair_str = f"{base.lower()}_{quote.lower()}"
-                        if pair_str in filename_lower:
+                        # Check if both currencies are mentioned in content
+                        if base.lower() in content.lower() and quote.lower() in content.lower():
                             currency_pairs_set.add(f"{base}/{quote}")
-                            print(f"Found pair in filename: {base}/{quote}")
-                        # Also check content for mentions
-                        elif base.lower() in content.lower() and quote.lower() in content.lower():
-                            currency_pairs_set.add(f"{base}/{quote}")
-                            print(f"Found currencies mentioned in content: {base}/{quote}")
+                            logger.info(f"Found currencies mentioned in content: {base}/{quote}")
+                            matched_to_subscription = True
+                            break
                 
-                # If no currency pairs were found, assign to the first currency pair
-                if not currency_pairs_set and currency_pairs:
-                    base, quote = currency_pairs[0]
-                    currency_pairs_set.add(f"{base}/{quote}")
-                    print(f"No match found, defaulting to: {base}/{quote}")
+                # Skip this article if no match to current subscriptions
+                if not matched_to_subscription:
+                    logger.info(f"Skipping article {filename} - not matched to current subscriptions")
+                    continue
                 
-                # Extract sentiment if available
+                # Extract sentiment if available - provide default values if not found
                 sentiment_match = re.search(r'SENTIMENT:\s(.*?)(?:\n|\Z)', content, re.MULTILINE)
                 sentiment = sentiment_match.group(1).strip() if sentiment_match else "neutral"
                 
@@ -2093,7 +3128,7 @@ def load_news_from_disk(currency_pairs):
                 url_match = re.search(r'URL:\s(.*?)(?:\n|\Z)', content, re.MULTILINE)
                 url = url_match.group(1).strip() if url_match else ""
                 
-                # Create news item
+                # Create news item - always include the article regardless of sentiment score
                 news_item = {
                     "title": title,
                     "summary": summary,
@@ -2109,18 +3144,20 @@ def load_news_from_disk(currency_pairs):
                 }
                 
                 all_news.append(news_item)
+                logger.info(f"Added article: {title} with sentiment {sentiment} ({score})")
                 
             except Exception as e:
-                print(f"Error processing news file {file_path}: {str(e)}")
+                logger.warning(f"Error processing news file {file_path}: {str(e)}")
                 continue
         
         # Sort by timestamp, newest first
         all_news.sort(key=lambda x: x["timestamp"], reverse=True)
         
+        logger.info(f"Returning {len(all_news)} news items")
         return all_news
             
     except Exception as e:
-        print(f"Error loading news from disk: {str(e)}")
+        logger.warning(f"Error loading news from disk: {str(e)}")
         return []
         
 # Function to add a notification
@@ -2172,12 +3209,30 @@ def update_rates(use_mock_data=False):
                     updated_any = True
             add_notification("Using mock currency data for testing", "info")
         else:
-            # Use the optimized scraper method
-            currency_pairs = [(sub["base"], sub["quote"]) for sub in st.session_state.subscriptions]
-            results = scrape_yahoo_finance_rates(currency_pairs, debug_log=st.session_state.debug_log)
-            # Check if any rates were fetched
-            if results:
-                updated_any = True
+                    # Use the optimized scraper method - REPLACE THIS LINE
+                    # currency_pairs = [(sub["base"], sub["quote"]) for sub in st.session_state.subscriptions]
+                    # results = scrape_yahoo_finance_rates(currency_pairs, debug_log=st.session_state.debug_log)
+                    
+                    # WITH THIS - which uses the new scraper and stores YTD & 5D data locally
+                    currency_pairs = [(sub["base"], sub["quote"]) for sub in st.session_state.subscriptions]
+                    
+                    # Determine if we should also fetch YTD data (once per day is enough)
+                    fetch_ytd = False
+                    if 'last_ytd_fetch' not in st.session_state or st.session_state.last_ytd_fetch is None:
+                        fetch_ytd = True
+                    elif (datetime.now() - st.session_state.last_ytd_fetch).days >= 1:
+                        fetch_ytd = True
+                        
+                    results = scrape_yahoo_finance_rates(currency_pairs, fetch_ytd=fetch_ytd, debug_log=st.session_state.debug_log)
+                    
+                    # Update last YTD fetch time if we fetched YTD data
+                    if fetch_ytd:
+                        st.session_state.last_ytd_fetch = datetime.now()
+                        add_notification("Updated YTD data for all currency pairs", "success")
+                        
+                    # Check if any rates were fetched
+                    if results:
+                        updated_any = True
 
         if updated_any:
             # Update subscriptions with new rates
@@ -2926,11 +3981,12 @@ def prepare_map_data(variations, currency_to_country):
     return map_data
 
 
-# The callback just sets a flag
-def refresh_news_callback():
-    st.session_state.refresh_news_clicked = True
+# *************************   End of Functions **************************** #
 
 # Call this function right after your session state initialization
+
+ensure_initial_news_loaded()
+
 setup_auto_refresh()
 
 # # Display the logo
@@ -2964,6 +4020,15 @@ with header_col1:
     # Dynamic title based on market type
     if st.session_state.market_type == 'FX':
         st.markdown("<h1 class='main-header'>💱 FX Market Monitor</h1>", unsafe_allow_html=True)
+        
+        # Display the text with a link on the word "sentiment"
+        sentiment_url = "https://huggingface.co/yiyanghkust/finbert-tone"
+        st.markdown(
+            f"Real-time FX rates and news sentiment monitoring [.]({sentiment_url})",
+            unsafe_allow_html=True
+        )
+    elif st.session_state.market_type == 'Indices':
+        st.markdown("<h1 class='main-header'>💱 Indices Market Monitor</h1>", unsafe_allow_html=True)
         
         # Display the text with a link on the word "sentiment"
         sentiment_url = "https://huggingface.co/yiyanghkust/finbert-tone"
@@ -3205,7 +4270,7 @@ with st.expander("View Trader Sentiment Overview", expanded=False):
         sentiment_data = {}
         
     # This will now work even if sentiment_data is an empty dictionary
-    pairs_data = sentiment_data.get('data', {})
+    pairs_data = {} if sentiment_data is None else sentiment_data.get('data', {})
     
     with sent_col1:
         st.markdown("#### Top Bullish Pairs")
@@ -3408,48 +4473,18 @@ with st.sidebar:
     st.markdown("<hr>", unsafe_allow_html=True)
     
     # Handle market switching logic
-    if indices_button and st.session_state.market_type != 'Indices':
-        # Save current subscriptions based on the current market type
-        if st.session_state.market_type == 'FX':
-            st.session_state.fx_subscriptions = st.session_state.subscriptions
-        elif st.session_state.market_type == 'Crypto':
-            st.session_state.crypto_subscriptions = st.session_state.subscriptions
-        
-        # Switch to Indices
-        st.session_state.market_type = 'Indices'
-        
-        # Restore indices subscriptions
-        st.session_state.subscriptions = st.session_state.indices_subscriptions
-        
-        # Clear cached news and refresh data
-        st.session_state.cached_news = []
-        st.session_state.last_news_fetch = None
-        
-        # Update available currencies
-        available_currencies = indices
-        
-        # Notify user
-        add_notification("Switched to Indices Market", "system")
-        
-        # Rerun to refresh the UI
+    # Handle market switching logic
+    if fx_button:
+        switch_market_type('FX')
         st.rerun()
-        
-    if fx_button and st.session_state.market_type != 'FX':
-        # Save current subscriptions
-        if st.session_state.market_type == 'Crypto':
-            st.session_state.crypto_subscriptions = st.session_state.subscriptions
-        elif st.session_state.market_type == 'Indices':
-            st.session_state.indices_subscriptions = st.session_state.subscriptions
-        
-        # Rest of your existing code...
 
-    # Step 8: Update the crypto button handler similarly
-    if crypto_button and st.session_state.market_type != 'Crypto':
-        # Save current subscriptions
-        if st.session_state.market_type == 'FX':
-            st.session_state.fx_subscriptions = st.session_state.subscriptions
-        elif st.session_state.market_type == 'Indices':
-            st.session_state.indices_subscriptions = st.session_state.subscriptions
+    if crypto_button:
+        switch_market_type('Crypto')
+        st.rerun()
+
+    if indices_button:
+        switch_market_type('Indices')
+        st.rerun()
 
     # After your existing navigation buttons, add:
     if st.button("👥 Go to Sentiment Dashboard", use_container_width=True):
@@ -3536,15 +4571,27 @@ with st.sidebar:
             st.sidebar.caption(f"Last news refresh: {st.session_state.last_news_auto_refresh_time.strftime('%H:%M:%S')}")
 
 
+    # Get currencies from subscriptions for the news section
+    subscription_currencies = list(set([sub["base"] for sub in st.session_state.subscriptions] + 
+                           [sub["quote"] for sub in st.session_state.subscriptions]))
+
     # Check the flag elsewhere in your code
     if st.session_state.refresh_news_clicked:
-        # Do the refresh
-        news_items = fetch_news(use_mock_fallback=True, force=True)
-        # Reset the flag
+        # The refresh has already been handled by the callback
+        # Just reset the flag and the news will be loaded from the appropriate cache
         st.session_state.refresh_news_clicked = False
+        
+        # Determine which cache to use based on market type
+        if st.session_state.market_type == 'FX':
+            news_items = st.session_state.get('fx_news', [])
+        elif st.session_state.market_type == 'Crypto':
+            news_items = st.session_state.get('crypto_news', [])
+        else:  # Indices
+            news_items = st.session_state.get('indices_news', [])
     else:
-        # Normal fetch
-        news_items = fetch_news(use_mock_fallback=True)
+        # Normal fetch path with disk reading will happen here
+        # The fetch_news function handles reading from disk first
+        news_items = fetch_news(subscription_currencies)
 
     # run_sentiment_analysis = st.sidebar.checkbox("Analyze sentiment", value=False, 
     #                                             help="Run sentiment analysis on new articles (slower)")
@@ -3596,147 +4643,151 @@ map_data = prepare_map_data(variations, currency_to_country)
 col4, col5 = st.columns([3, 1])  # Adjust the column widths to give more space to the map
 
 with col4:
-
-    # Conditionally display the geomaps
-    if map_data:
+    with st.container(key=f"market_container_{st.session_state.ui_refresh_key}"):
+        # All your existing col4 content goes here
+        
+        # First, clear any previous content
         if st.session_state.market_type == 'FX':
-            # Use existing FX maps code
-            # Create a layout with three columns
-            col1, col2, col3 = st.columns(3)
+    # Conditionally display the geomaps
+            if map_data:
+                if st.session_state.market_type == 'FX':
+                    # Use existing FX maps code
+                    # Create a layout with three columns
+                    col1, col2, col3 = st.columns(3)
 
-            # Map for the US continent
-            # Map for the US continent
-            with col1:
-                us_locations = ['United States', 'Canada', 'Mexico']
-                fig_us = go.Figure(data=go.Choropleth(
-                    locations=[data["location"] for data in map_data if data["location"] in us_locations],
-                    z=[data["variation"] for data in map_data if data["location"] in us_locations],
-                    locationmode='country names',
-                    colorscale='RdBu',
-                    showscale=False,  # Hide color scale for US map
-                    text=[f'{data["variation"]:.2f}%' for data in map_data if data["location"] in us_locations],
-                    hoverinfo='text'
-                ))
+                    # Map for the US continent
+                    # Map for the US continent
+                    with col1:
+                        us_locations = ['United States', 'Canada', 'Mexico']
+                        fig_us = go.Figure(data=go.Choropleth(
+                            locations=[data["location"] for data in map_data if data["location"] in us_locations],
+                            z=[data["variation"] for data in map_data if data["location"] in us_locations],
+                            locationmode='country names',
+                            colorscale='RdBu',
+                            showscale=False,  # Hide color scale for US map
+                            text=[f'{data["variation"]:.2f}%' for data in map_data if data["location"] in us_locations],
+                            hoverinfo='text'
+                        ))
 
-                fig_us.update_layout(
-                    geo=dict(
-                        showframe=False,
-                        showcoastlines=False,
-                        projection_type='equirectangular',
-                        center=dict(lat=37.0902, lon=-95.7129),
-                        scope='north america'
-                    ),
-                    height=300,
-                    margin=dict(l=0, r=0, t=0, b=0)
-                )
+                        fig_us.update_layout(
+                            geo=dict(
+                                showframe=False,
+                                showcoastlines=False,
+                                projection_type='equirectangular',
+                                center=dict(lat=37.0902, lon=-95.7129),
+                                scope='north america'
+                            ),
+                            height=300,
+                            margin=dict(l=0, r=0, t=0, b=0)
+                        )
 
-                st.plotly_chart(fig_us, use_container_width=True)
+                        st.plotly_chart(fig_us, use_container_width=True)
 
-            # Map for Europe
-            with col2:
-                # Create a list of European countries that includes both Eurozone and UK
-                euro_countries = currency_to_country['EUR']
-                if not isinstance(euro_countries, list):
-                    euro_countries = [euro_countries]
-                
-                # Explicitly add the UK to our Europe map
-                uk_location = currency_to_country.get('GBP', 'United Kingdom')
-                europe_locations = euro_countries + [uk_location]
-                
-                # Filter the map_data for European countries including UK
-                euro_map_data = [data for data in map_data if data["location"] in europe_locations]
-                
-                # Debug to verify UK is included
-                uk_data = [data for data in map_data if data["location"] == uk_location]
-                if uk_data:
-                    print(f"UK data found: {uk_data}")
-                else:
-                    print("UK data not found in map_data")
-                
-                if euro_map_data:
-                    # When setting up the Europe map, make sure to adjust the scope
-                    fig_europe = go.Figure(data=go.Choropleth(
-                        locations=[data["location"] for data in euro_map_data],
-                        z=[data["variation"] for data in euro_map_data],
-                        locationmode='country names',
-                        colorscale='RdBu',
-                        showscale=False,
-                        text=[f'{data["location"]}: {data["variation"]:.2f}%' for data in euro_map_data],
-                        hoverinfo='text'
-                    ))
+                    # Map for Europe
+                    with col2:
+                        # Create a list of European countries that includes both Eurozone and UK
+                        euro_countries = currency_to_country['EUR']
+                        if not isinstance(euro_countries, list):
+                            euro_countries = [euro_countries]
+                        
+                        # Explicitly add the UK to our Europe map
+                        uk_location = currency_to_country.get('GBP', 'United Kingdom')
+                        europe_locations = euro_countries + [uk_location]
+                        
+                        # Filter the map_data for European countries including UK
+                        euro_map_data = [data for data in map_data if data["location"] in europe_locations]
+                        
+                        # Debug to verify UK is included
+                        uk_data = [data for data in map_data if data["location"] == uk_location]
+                        if uk_data:
+                            logger.info(f"UK data found: {uk_data}")
+                        else:
+                            logger.warning("UK data not found in map_data")
+                        
+                        if euro_map_data:
+                            # When setting up the Europe map, make sure to adjust the scope
+                            fig_europe = go.Figure(data=go.Choropleth(
+                                locations=[data["location"] for data in euro_map_data],
+                                z=[data["variation"] for data in euro_map_data],
+                                locationmode='country names',
+                                colorscale='RdBu',
+                                showscale=False,
+                                text=[f'{data["location"]}: {data["variation"]:.2f}%' for data in euro_map_data],
+                                hoverinfo='text'
+                            ))
 
-                    # Adjust Europe map settings to ensure UK is visible
-                    fig_europe.update_layout(
-                        geo=dict(
-                            showframe=False,
-                            showcoastlines=False,
-                            projection_type='equirectangular',
-                            center=dict(lat=50.0, lon=10.0),  # Adjusted to include UK better
-                            scope='europe',
-                            lonaxis=dict(range=[-15, 30]),  # Ensure UK is in longitude range
-                            lataxis=dict(range=[35, 65])     # Adjusted latitude range
-                        ),
-                        height=300,
-                        margin=dict(l=0, r=0, t=0, b=0)
-                    )
+                            # Adjust Europe map settings to ensure UK is visible
+                            fig_europe.update_layout(
+                                geo=dict(
+                                    showframe=False,
+                                    showcoastlines=False,
+                                    projection_type='equirectangular',
+                                    center=dict(lat=50.0, lon=10.0),  # Adjusted to include UK better
+                                    scope='europe',
+                                    lonaxis=dict(range=[-15, 30]),  # Ensure UK is in longitude range
+                                    lataxis=dict(range=[35, 65])     # Adjusted latitude range
+                                ),
+                                height=300,
+                                margin=dict(l=0, r=0, t=0, b=0)
+                            )
 
-                    st.plotly_chart(fig_europe, use_container_width=True)
-                else:
-                    st.info("No variation data available for European countries")
+                            st.plotly_chart(fig_europe, use_container_width=True)
+                        else:
+                            st.info("No variation data available for European countries")
 
-            # Map for Asia - SHOWING SCALE
-            with col3:
-                asia_countries = ['China', 'Japan', 'India', 'Singapore', 'Hong Kong']
-                
-                # Filter the map_data for Asian countries
-                asia_map_data = [data for data in map_data if data["location"] in asia_countries]
-                
-                if asia_map_data:
-                    fig_asia = go.Figure(data=go.Choropleth(
-                        locations=[data["location"] for data in asia_map_data],
-                        z=[data["variation"] for data in asia_map_data],
-                        locationmode='country names',
-                        colorscale='RdBu',
-                        showscale=True,  # Show color scale ONLY for Asia map
-                        colorbar_title="% Variation",
-                        colorbar=dict(
-                            title="% Variation",
-                            thickness=15,
-                            len=0.7,
-                            x=0.9,
-                        ),
-                        text=[f'{data["variation"]:.2f}%' for data in asia_map_data],
-                        hoverinfo='text'
-                    ))
+                    # Map for Asia - SHOWING SCALE
+                    with col3:
+                        asia_countries = ['China', 'Japan', 'India', 'Singapore', 'Hong Kong']
+                        
+                        # Filter the map_data for Asian countries
+                        asia_map_data = [data for data in map_data if data["location"] in asia_countries]
+                        
+                        if asia_map_data:
+                            fig_asia = go.Figure(data=go.Choropleth(
+                                locations=[data["location"] for data in asia_map_data],
+                                z=[data["variation"] for data in asia_map_data],
+                                locationmode='country names',
+                                colorscale='RdBu',
+                                showscale=True,  # Show color scale ONLY for Asia map
+                                colorbar_title="% Variation",
+                                colorbar=dict(
+                                    title="% Variation",
+                                    thickness=15,
+                                    len=0.7,
+                                    x=0.9,
+                                ),
+                                text=[f'{data["variation"]:.2f}%' for data in asia_map_data],
+                                hoverinfo='text'
+                            ))
 
-                    fig_asia.update_layout(
-                        geo=dict(
-                            showframe=False,
-                            showcoastlines=False,
-                            projection_type='equirectangular',
-                            center=dict(lat=35.8617, lon=104.1954),
-                            scope='asia'
-                        ),
-                        height=300,
-                        margin=dict(l=0, r=0, t=0, b=0)
-                    )
+                            fig_asia.update_layout(
+                                geo=dict(
+                                    showframe=False,
+                                    showcoastlines=False,
+                                    projection_type='equirectangular',
+                                    center=dict(lat=35.8617, lon=104.1954),
+                                    scope='asia'
+                                ),
+                                height=300,
+                                margin=dict(l=0, r=0, t=0, b=0)
+                            )
 
-                    st.plotly_chart(fig_asia, use_container_width=True)
-                else:
-                    st.info("No variation data available for Asian countries")
-        elif st.session_state.market_type == 'Crypto':
-            # Your existing crypto visualization
-            st.subheader("Cryptocurrency Market Overview")
-            display_crypto_market_visualization()
-        elif st.session_state.market_type == 'Indices':
-            # Add indices visualizations
-            tab1, tab2 = st.tabs(["Performance Overview", "World Map"])
-            
-            with tab1:
-                display_indices_visualization()
-            
-            with tab2:
-                display_indices_world_map()
+                            st.plotly_chart(fig_asia, use_container_width=True)
+                        else:
+                            st.info("No variation data available for Asian countries")
+                elif st.session_state.market_type == 'Crypto':
+                    # Your existing crypto visualization
+                    st.subheader("Cryptocurrency Market Overview")
+                    display_crypto_market_visualization()
+                elif st.session_state.market_type == 'Indices':
+                    # Add indices visualizations
+                    tab1, tab2 = st.tabs(["Performance Overview", "World Map"])
+                    
+                    with tab1:
+                        display_indices_visualization()
+                    
+                    with tab2:
+                        display_indices_world_map()
 
     # Currency Rates middle section
     st.header("Currency Rates")
@@ -3754,192 +4805,7 @@ with col4:
 
     # Create a card for each subscription
     for i, sub in enumerate(st.session_state.subscriptions):
-        # Create a unique key for this subscription
-        key_base = f"{sub['base']}_{sub['quote']}_{i}"
-        
-        # Calculate percentage change to show in the header
-        percent_change_text = ""
-        if sub["current_rate"] is not None:
-            # Determine reference rate
-            reference_rate = None
-            if sub.get("previous_close") is not None:
-                reference_rate = sub["previous_close"]
-            elif sub.get("last_rate") is not None:
-                reference_rate = sub["last_rate"]
-                
-            # Calculate percent change if reference rate is available
-            if reference_rate is not None:
-                percent_change = ((sub["current_rate"] - reference_rate) / reference_rate) * 100
-                sign = "+" if percent_change > 0 else ""
-                percent_change_text = f" {sign}{percent_change:.2f}%"
-        
-        # Create a container for the card with a border and padding
-        with st.container():
-            st.markdown("""
-            <style>
-            .header-container {
-                background-color: #1E1E1E;
-                border-radius: 5px 5px 0 0;
-                padding: 10px 15px;
-                margin-bottom: 0;
-                border: 1px solid #333;
-                border-bottom: none;
-            }
-            </style>
-            """, unsafe_allow_html=True)
-            
-            # Create a visually distinct header
-            st.markdown('<div class="header-container">', unsafe_allow_html=True)
-            header_cols = st.columns([2, 1, 3])
-            
-            with header_cols[0]:
-                # Currency pair
-                st.markdown(f"**{sub['base']}/{sub['quote']}**")
-            
-            with header_cols[1]:
-                # Percentage change with color
-                if percent_change_text:
-                    color = "green" if "+" in percent_change_text else "red" if "-" in percent_change_text else "gray"
-                    st.markdown(f"<span style='color:{color};font-weight:bold;'>{percent_change_text}</span>", unsafe_allow_html=True)
-            
-            with header_cols[2]:
-                # Get sentiment data for FX pairs
-                if st.session_state.market_type == 'FX':
-                    sentiment_data = get_sentiment_for_pair(sub['base'], sub['quote'])
-                    if sentiment_data:
-                        long_pct = sentiment_data.get('long_percentage', 0)
-                        short_pct = sentiment_data.get('short_percentage', 0)
-                        
-                        # Determine if bullish or bearish
-                        sentiment_label = "Bullish" if long_pct >= 50 else "Bearish"
-                        sentiment_color = "#4CAF50" if long_pct >= 50 else "#F44336"
-                        
-                        # Create a sentiment bar visualization with percentages
-                        st.markdown(f"""
-                        <div style="width:100%; display:flex; align-items:center; justify-content:flex-end;">
-                            <span style="color:#4CAF50; margin-right:5px; font-size:0.8em; font-weight:bold;">
-                                L:{long_pct}%
-                            </span>
-                            <span style="color:#F44336; margin-right:5px; font-size:0.8em; font-weight:bold;">
-                                S:{short_pct}%
-                            </span>
-                            <span style="color:{sentiment_color}; margin-right:5px; font-size:0.8em; font-weight:bold;">
-                                {sentiment_label}
-                            </span>
-                            <div style="width:80px; height:15px; background:#F44336; border-radius:3px; overflow:hidden;">
-                                <div style="width:{long_pct}%; height:100%; background-color:#4CAF50;"></div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                elif st.session_state.market_type == 'Crypto':
-                    # For crypto, add a placeholder or different visualization
-                    pass
-                    
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-            # Actual expandable content
-            with st.expander("Details", expanded=not st.session_state.collapse_all_cards):
-                # Add tabs for Rate Info, Economic Calendar, and Sentiment
-                rate_tab, calendar_tab, sentiment_tab = st.tabs(["Rate Info", "Economic Calendar", "Sentiment"])
-                
-                with rate_tab:
-                    # Top row with remove button
-                    col3, col4 = st.columns([3, 1])
-                    with col4:
-                        if st.button("Remove", key=f"remove_{key_base}"):
-                            st.session_state.subscriptions.pop(i)
-                            add_notification(f"Removed subscription: {sub['base']}/{sub['quote']}", "system")
-                            st.rerun()
-
-                    # Rate information
-                    if sub["current_rate"] is not None:
-                        # Format the current rate with appropriate decimal places
-                        if sub["current_rate"] < 0.01:
-                            formatted_rate = f"{sub['current_rate']:.6f}"
-                        elif sub["current_rate"] < 1:
-                            formatted_rate = f"{sub['current_rate']:.4f}"
-                        else:
-                            formatted_rate = f"{sub['current_rate']:.4f}"
-                        
-                        # Format the previous close rate if available
-                        previous_rate_text = "N/A"
-                        if sub.get("previous_close") is not None:
-                            prev_rate = sub["previous_close"]
-                            if prev_rate < 0.01:
-                                previous_rate_text = f"{prev_rate:.6f}"
-                            elif prev_rate < 1:
-                                previous_rate_text = f"{prev_rate:.4f}"
-                            else:
-                                previous_rate_text = f"{prev_rate:.4f}"
-
-                        # Determine rate direction and color
-                        direction_arrow = ""
-                        color = "gray"
-                        direction_class = "rate-neutral"
-                        
-                        # Use previous_close if available, otherwise fall back to last_rate
-                        reference_rate = None
-                        if sub.get("previous_close") is not None:
-                            reference_rate = sub["previous_close"]
-                        elif sub.get("last_rate") is not None:
-                            reference_rate = sub["last_rate"]
-                            
-                        if reference_rate is not None:
-                            if sub["current_rate"] > reference_rate:
-                                direction_arrow = "▲"
-                                color = "green"
-                                direction_class = "rate-up"
-                            elif sub["current_rate"] < reference_rate:
-                                direction_arrow = "▼"
-                                color = "red"
-                                direction_class = "rate-down"
-
-                        # Add rate information to HTML
-                        html = f"""
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                            <span>Current Rate:</span>
-                            <span style="color: {color};">{formatted_rate} {direction_arrow}</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                            <span>Previous Close:</span>
-                            <span style="color: #6c757d;">{previous_rate_text}</span>
-                        </div>
-                        """
-                        st.markdown(html, unsafe_allow_html=True)
-
-                        # Add percent change if available
-                        if reference_rate is not None:
-                            percent_change = ((sub["current_rate"] - reference_rate) / reference_rate) * 100
-                            change_color = "green" if percent_change > 0 else "red" if percent_change < 0 else "gray"
-                            sign = "+" if percent_change > 0 else ""
-                            st.markdown(f"**Change:** <span style='color:{change_color};font-weight:bold;'>{sign}{percent_change:.4f}%</span>", unsafe_allow_html=True)
-                    else:
-                        st.info("Loading rate data...")
-
-                    # Threshold slider
-                    new_threshold = st.slider(
-                        "Alert threshold (%)",
-                        min_value=0.1,
-                        max_value=5.0,
-                        value=float(sub["threshold"]),
-                        step=0.1,
-                        key=f"threshold_slider_{key_base}"
-                    )
-
-                    if new_threshold != sub["threshold"]:
-                        st.session_state.subscriptions[i]["threshold"] = new_threshold
-                        add_notification(f"Updated threshold for {sub['base']}/{sub['quote']} to {new_threshold}%", "system")
-                
-                with calendar_tab:
-                    # Existing calendar tab code
-                    display_economic_calendar_for_currency_pair(sub['base'], sub['quote'])
-                
-                with sentiment_tab:
-                    # Existing sentiment tab code
-                    display_sentiment_tab(sub['base'], sub['quote'])
-
-                # Chart of rate history (outside the tabs)
-                blended_display_rate_history(sub)
+        display_currency_pair(sub)
         
         # Add some space between cards
         st.markdown("<div style='margin-bottom:1rem;'></div>", unsafe_allow_html=True)
@@ -4168,170 +5034,179 @@ with col4:
 
 # News feed
 with col5:
-    st.header("Currency News")
+    # st.header("Currency News")
+    display_news_sidebar()
+    # # Filter controls
+    # sentiment_filter = st.selectbox(
+    #     "Filter by sentiment using Finbert-Tone AI Model",
+    #     options=["All News", "Positive", "Negative", "Neutral", "Important Only"]
+    # )
 
-    # Filter controls
-    sentiment_filter = st.selectbox(
-        "Filter by sentiment using Finbert-Tone AI Model",
-        options=["All News", "Positive", "Negative", "Neutral", "Important Only"]
-    )
+    # # Get currencies from subscriptions
+    # subscription_currencies = list(set([sub["base"] for sub in st.session_state.subscriptions] +
+    #                                [sub["quote"] for sub in st.session_state.subscriptions]))
 
-    # Get currencies from subscriptions
-    subscription_currencies = list(set([sub["base"] for sub in st.session_state.subscriptions] +
-                                   [sub["quote"] for sub in st.session_state.subscriptions]))
-
-    market_type = st.session_state.market_type  # Get the current market type (Crypto or FX)
+    # market_type = st.session_state.market_type  # Get the current market type (Crypto or FX)
     
-    # Initialize market-specific news cache keys if they don't exist
-    if 'fx_news' not in st.session_state:
-        st.session_state.fx_news = []
+    # # Initialize market-specific news cache keys if they don't exist
+    # if 'fx_news' not in st.session_state:
+    #     st.session_state.fx_news = []
         
-    if 'crypto_news' not in st.session_state:
-        st.session_state.crypto_news = []
+    # if 'crypto_news' not in st.session_state:
+    #     st.session_state.crypto_news = []
         
-    if 'last_fx_news_fetch' not in st.session_state:
-        st.session_state.last_fx_news_fetch = None
+    # if 'last_fx_news_fetch' not in st.session_state:
+    #     st.session_state.last_fx_news_fetch = None
         
-    if 'last_crypto_news_fetch' not in st.session_state:
-        st.session_state.last_crypto_news_fetch = None
+    # if 'last_crypto_news_fetch' not in st.session_state:
+    #     st.session_state.last_crypto_news_fetch = None
 
-    current_time = datetime.now()
-    should_refresh_news = False
+    # current_time = datetime.now()
+    # should_refresh_news = False
     
-    # Use market-specific cache keys
-    if market_type == 'FX':
-        news_cache_key = 'fx_news'
-        last_fetch_key = 'last_fx_news_fetch'
-        next_refresh_key = 'next_fx_news_refresh_time'
-    else:  # Crypto
-        news_cache_key = 'crypto_news'
-        last_fetch_key = 'last_crypto_news_fetch'
-        next_refresh_key = 'next_crypto_news_refresh_time'
+    # # Use market-specific cache keys
+    # if market_type == 'FX':
+    #     news_cache_key = 'fx_news'
+    #     last_fetch_key = 'last_fx_news_fetch'
+    #     next_refresh_key = 'next_fx_news_refresh_time'
+    # else:  # Crypto
+    #     news_cache_key = 'crypto_news'
+    #     last_fetch_key = 'last_crypto_news_fetch'
+    #     next_refresh_key = 'next_crypto_news_refresh_time'
     
-    # Initialize the next refresh time if it doesn't exist
-    if next_refresh_key not in st.session_state:
-        st.session_state[next_refresh_key] = current_time
+    # # Initialize the next refresh time if it doesn't exist
+    # if next_refresh_key not in st.session_state:
+    #     st.session_state[next_refresh_key] = current_time
     
-    # Only refresh news if:
-    # 1. We don't have any cached news yet for this market type
-    # 2. We're past the scheduled next refresh time for this market type
-    if st.session_state[last_fetch_key] is None:
-        should_refresh_news = True
-        reason = f"Initial {market_type} fetch"
-        # Set the next refresh time
-        st.session_state[next_refresh_key] = current_time + timedelta(seconds=300)
-    elif not st.session_state[news_cache_key]:
-        should_refresh_news = True
-        reason = f"No cached {market_type} news"
-        # Set the next refresh time
-        st.session_state[next_refresh_key] = current_time + timedelta(seconds=300)
-    elif current_time >= st.session_state[next_refresh_key]:
-        should_refresh_news = True
-        reason = f"Scheduled 5-minute {market_type} refresh"
-        # Schedule the next refresh
-        st.session_state[next_refresh_key] = current_time + timedelta(seconds=300)
-    elif st.session_state.refresh_news_clicked:
-        should_refresh_news = True
-        reason = f"Manual {market_type} refresh"
-        # Schedule the next refresh
-        st.session_state[next_refresh_key] = current_time + timedelta(seconds=300)
-        # Reset the flag
-        st.session_state.refresh_news_clicked = False
+    # # Only refresh news if:
+    # # 1. We don't have any cached news yet for this market type
+    # # 2. We're past the scheduled next refresh time for this market type
+    # if st.session_state[last_fetch_key] is None:
+    #     should_refresh_news = True
+    #     reason = f"Initial {market_type} fetch"
+    #     # Set the next refresh time
+    #     st.session_state[next_refresh_key] = current_time + timedelta(seconds=300)
+    # elif not st.session_state[news_cache_key]:
+    #     should_refresh_news = True
+    #     reason = f"No cached {market_type} news"
+    #     # Set the next refresh time
+    #     st.session_state[next_refresh_key] = current_time + timedelta(seconds=300)
+    # elif current_time >= st.session_state[next_refresh_key]:
+    #     should_refresh_news = True
+    #     reason = f"Scheduled 5-minute {market_type} refresh"
+    #     # Schedule the next refresh
+    #     st.session_state[next_refresh_key] = current_time + timedelta(seconds=300)
+    # elif st.session_state.refresh_news_clicked:
+    #     should_refresh_news = True
+    #     reason = f"Manual {market_type} refresh"
+    #     # Schedule the next refresh
+    #     st.session_state[next_refresh_key] = current_time + timedelta(seconds=300)
+    #     # Reset the flag
+    #     st.session_state.refresh_news_clicked = False
         
-    # Fetch news if needed
-    if should_refresh_news:
-        # Add notification to make refresh visible
-        add_notification(f"Refreshing {market_type} news: {reason}", "info")
-        news_items = fetch_news(subscription_currencies)
-        # Store in the market-specific cache
-        st.session_state[news_cache_key] = news_items
-        st.session_state[last_fetch_key] = current_time
-    else:
-        # Use the market-specific cached news
-        news_items = st.session_state[news_cache_key]
+    # # Fetch news if needed
+    # if should_refresh_news:
+    #     # Add notification to make refresh visible
+    #     add_notification(f"Refreshing {market_type} news: {reason}", "info")
+    #     news_items = fetch_news(subscription_currencies)
+    #     # Store in the market-specific cache
+    #     st.session_state[news_cache_key] = news_items
+    #     st.session_state[last_fetch_key] = current_time
+    # else:
+    #     # Use the market-specific cached news
+    #     news_items = st.session_state[news_cache_key]
         
-    # Add a small caption showing when news was last updated
-    if st.session_state[last_fetch_key]:
-        time_diff = current_time - st.session_state[last_fetch_key]
-        if time_diff.seconds < 60:
-            update_text = "just now"
-        elif time_diff.seconds < 3600:
-            update_text = f"{time_diff.seconds // 60} minutes ago"
-        else:
-            update_text = f"{time_diff.seconds // 3600} hours ago"
-        st.caption(f"{market_type} news last updated: {update_text}")
+    # # Add a small caption showing when news was last updated
+    # if st.session_state[last_fetch_key]:
+    #     time_diff = current_time - st.session_state[last_fetch_key]
+    #     if time_diff.seconds < 60:
+    #         update_text = "just now"
+    #     elif time_diff.seconds < 3600:
+    #         update_text = f"{time_diff.seconds // 60} minutes ago"
+    #     else:
+    #         update_text = f"{time_diff.seconds // 3600} hours ago"
+    #     st.caption(f"{market_type} news last updated: {update_text}")
         
-    # Apply sentiment filter
-    if sentiment_filter != "All News":
-        if sentiment_filter == "Important Only":
-            # Filter for news with strong sentiment (positive or negative)
-            news_items = [item for item in news_items if abs(item.get("score", 0)) > 0.5]
-        else:
-            sentiment_map = {"Positive": "positive", "Negative": "negative", "Neutral": "neutral"}
-            filter_sentiment = sentiment_map.get(sentiment_filter, "")
-            news_items = [item for item in news_items if item.get("sentiment", "neutral") == filter_sentiment]
+    # # Apply sentiment filter
+    # if sentiment_filter != "All News":
+    #     if sentiment_filter == "Important Only":
+    #         # Filter for news with strong sentiment (positive or negative)
+    #         news_items = [item for item in news_items if abs(item.get("score", 0)) > 0.5]
+    #     else:
+    #         sentiment_map = {"Positive": "positive", "Negative": "negative", "Neutral": "neutral"}
+    #         filter_sentiment = sentiment_map.get(sentiment_filter, "neutral")
+            
+    #         # Include items that match the filter OR items without sentiment if filter is "Neutral"
+    #         if filter_sentiment == "neutral":
+    #             news_items = [item for item in news_items if 
+    #                         item.get("sentiment", "neutral") == filter_sentiment or
+    #                         "sentiment" not in item or
+    #                         not item.get("sentiment") or
+    #                         item.get("score", 0) == 0]
+    #         else:
+    #             news_items = [item for item in news_items if item.get("sentiment", "neutral") == filter_sentiment]
 
-    # Display news items
-    if news_items:
-        for item in news_items:
-            # Format timestamp
-            time_diff = datetime.now() - item["timestamp"]
-            if time_diff.days > 0:
-                time_str = f"{time_diff.days}d ago"
-            elif time_diff.seconds // 3600 > 0:
-                time_str = f"{time_diff.seconds // 3600}h ago"
-            else:
-                time_str = f"{time_diff.seconds // 300}m ago"
+    # # Display news items
+    # if news_items:
+    #     for item in news_items:
+    #         # Format timestamp
+    #         time_diff = datetime.now() - item["timestamp"]
+    #         if time_diff.days > 0:
+    #             time_str = f"{time_diff.days}d ago"
+    #         elif time_diff.seconds // 3600 > 0:
+    #             time_str = f"{time_diff.seconds // 3600}h ago"
+    #         else:
+    #             time_str = f"{time_diff.seconds // 300}m ago"
 
-            # Create color based on sentiment
-            if 'sentiment' in item and item['sentiment'] == 'positive':
-                border_color = "green"
-                bg_color = "#d4edda"
-                text_color = "#28a745"
-            elif 'sentiment' in item and item['sentiment'] == 'negative':
-                border_color = "red"
-                bg_color = "#f8d7da"
-                text_color = "#dc3545"
-            else:  # neutral
-                border_color = "gray"
-                bg_color = "#f8f9fa"
-                text_color = "#6c757d"
+    #         # Create color based on sentiment
+    #         if 'sentiment' in item and item['sentiment'] == 'positive':
+    #             border_color = "green"
+    #             bg_color = "#d4edda"
+    #             text_color = "#28a745"
+    #         elif 'sentiment' in item and item['sentiment'] == 'negative':
+    #             border_color = "red"
+    #             bg_color = "#f8d7da"
+    #             text_color = "#dc3545"
+    #         else:  # neutral
+    #             border_color = "gray"
+    #             bg_color = "#f8f9fa"
+    #             text_color = "#6c757d"
 
-            # Rest of your display code remains the same
-            with st.container():
-                # Title with link if available
-                title_html = f"""<div style="padding:12px; margin-bottom:12px; border-left:4px solid {border_color}; border-radius:4px; background-color:#ffffff;">"""
+    #         # Rest of your display code remains the same
+    #         with st.container():
+    #             # Title with link if available
+    #             title_html = f"""<div style="padding:12px; margin-bottom:12px; border-left:4px solid {border_color}; border-radius:4px; background-color:#ffffff;">"""
                 
-                if 'url' in item and item['url']:
-                    title_html += f"""<div style="font-weight:bold; margin-bottom:8px;">
-                        <a href="{item['url']}" target="_blank" style="text-decoration:none; color:#1e88e5;">
-                            {item['title']} <span style="font-size:0.8em;">🔗</span>
-                        </a>
-                    </div>"""
-                else:
-                    title_html += f"""<div style="font-weight:bold; margin-bottom:8px;">{item['title']}</div>"""
+    #             if 'url' in item and item['url']:
+    #                 title_html += f"""<div style="font-weight:bold; margin-bottom:8px;">
+    #                     <a href="{item['url']}" target="_blank" style="text-decoration:none; color:#1e88e5;">
+    #                         {item['title']} <span style="font-size:0.8em;">🔗</span>
+    #                     </a>
+    #                 </div>"""
+    #             else:
+    #                 title_html += f"""<div style="font-weight:bold; margin-bottom:8px;">{item['title']}</div>"""
                 
-                # Add the rest of the card
-                title_html += f"""
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <div>
-                            <span style="background-color:#e0e8ff; padding:2px 6px; border-radius:3px; margin-right:5px;">
-                                {item['currency']}
-                            </span>
-                            <span style="color:#6c757d; font-size:0.8em;">{item['source']}</span>
-                        </div>
-                        <div>
-                            <span style="color:#6c757d; font-size:0.8em; margin-right:5px;">{time_str}</span>
-                            <span style="background-color:{bg_color}; color:{text_color}; padding:2px 6px; border-radius:10px; font-size:0.8em;">
-                                {item.get('sentiment', 'neutral')} ({'+' if item.get('score', 0) > 0 else ''}{item.get('score', 0)})
-                            </span>
-                        </div>
-                    </div>
-                </div>"""
+    #             # Add the rest of the card
+    #             title_html += f"""
+    #                 <div style="display:flex; justify-content:space-between; align-items:center;">
+    #                     <div>
+    #                         <span style="background-color:#e0e8ff; padding:2px 6px; border-radius:3px; margin-right:5px;">
+    #                             {item['currency']}
+    #                         </span>
+    #                         <span style="color:#6c757d; font-size:0.8em;">{item['source']}</span>
+    #                     </div>
+    #                     <div>
+    #                         <span style="color:#6c757d; font-size:0.8em; margin-right:5px;">{time_str}</span>
+    #                         <span style="background-color:{bg_color}; color:{text_color}; padding:2px 6px; border-radius:10px; font-size:0.8em;">
+    #                             {item.get('sentiment', 'neutral')} ({'+' if item.get('score', 0) > 0 else ''}{item.get('score', 0)})
+    #                         </span>
+    #                     </div>
+    #                 </div>
+    #             </div>"""
                 
-                st.markdown(title_html, unsafe_allow_html=True)
-    else:
-        st.info("No news items match your filters")
+    #             st.markdown(title_html, unsafe_allow_html=True)
+    # else:
+    #     st.info("No news items match your filters")
 
 # 7. Fetch the economic calendar data on app load (if not already cached)
 # Add this at the end of your script

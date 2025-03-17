@@ -5,7 +5,7 @@ import re
 # Your other imports here
 
 # Set up logging properly
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Mistral API usage stats
@@ -58,7 +58,7 @@ Sentiment:"""
     }
     
     try:
-        print(f"Sending request to Mistral API with {len(cleaned_text)} characters")  # Use print instead of logger
+        logger.info(f"Sending request to Mistral API with {len(cleaned_text)} characters")  # Use print instead of logger
         response = requests.post(url, headers=headers, data=json.dumps(data), timeout=10)
         
         if response.status_code == 200:

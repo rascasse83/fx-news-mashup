@@ -16,3 +16,8 @@ backoff
 boto3
 pydub 
 dotenv
+prophet>=1.1.1
+darts>=0.23.0
+pmdarima>=2.0.0  # For ARIMA models
+torch>=1.13.0    # For neural network models
+scikit-learn>=1.0.0

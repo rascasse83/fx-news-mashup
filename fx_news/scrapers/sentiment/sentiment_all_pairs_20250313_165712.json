@@ -1,0 +1,1229 @@
+{
+  "timestamp": "2025-03-13T16:57:12.955007",
+  "data": {
+    "EURUSD": {
+      "short_percentage": 77,
+      "long_percentage": 23,
+      "short_price": "1.0679",
+      "long_price": "1.0920",
+      "short_distance": "-192 pips",
+      "long_distance": "-49 pips",
+      "current_rate": "1.08711",
+      "detailed": {
+        "short": {
+          "percentage": "77",
+          "volume": "26399.95 lots",
+          "positions": "74638"
+        },
+        "popularity": "33"
+      }
+    },
+    "GBPUSD": {
+      "short_percentage": 78,
+      "long_percentage": 22,
+      "short_price": "1.2652",
+      "long_price": "1.2997",
+      "short_distance": "-298 pips",
+      "long_distance": "-47 pips",
+      "current_rate": "1.29500",
+      "detailed": {
+        "short": {
+          "percentage": "78",
+          "volume": "10240.20 lots",
+          "positions": "25897"
+        },
+        "popularity": "18"
+      }
+    },
+    "USDJPY": {
+      "short_percentage": 38,
+      "long_percentage": 62,
+      "short_price": "143.9449",
+      "long_price": "150.9888",
+      "short_distance": "-361 pips",
+      "long_distance": "-344 pips",
+      "current_rate": "147.551",
+      "detailed": {
+        "short": {
+          "percentage": "38",
+          "volume": "864.02 lots",
+          "positions": "3449"
+        },
+        "popularity": "8"
+      }
+    },
+    "GBPJPY": {
+      "short_percentage": 51,
+      "long_percentage": 49,
+      "short_price": "184.6644",
+      "long_price": "192.9246",
+      "short_distance": "-641 pips",
+      "long_distance": "-185 pips",
+      "current_rate": "191.077",
+      "detailed": {
+        "short": {
+          "percentage": "51",
+          "volume": "321.28 lots",
+          "positions": "1417"
+        },
+        "popularity": "3"
+      }
+    },
+    "USDCAD": {
+      "short_percentage": 83,
+      "long_percentage": 17,
+      "short_price": "1.4051",
+      "long_price": "1.4426",
+      "short_distance": "-370 pips",
+      "long_distance": "-5 pips",
+      "current_rate": "1.44206",
+      "detailed": {
+        "short": {
+          "percentage": "83",
+          "volume": "7664.37 lots",
+          "positions": "24465"
+        },
+        "popularity": "14"
+      }
+    },
+    "EURAUD": {
+      "short_percentage": 90,
+      "long_percentage": 10,
+      "short_price": "1.6809",
+      "long_price": "1.7207",
+      "short_distance": "-474 pips",
+      "long_distance": "+76 pips",
+      "current_rate": "1.72832",
+      "detailed": {
+        "short": {
+          "percentage": "90",
+          "volume": "4035.79 lots",
+          "positions": "10214"
+        },
+        "popularity": "5"
+      }
+    },
+    "EURJPY": {
+      "short_percentage": 62,
+      "long_percentage": 38,
+      "short_price": "154.3833",
+      "long_price": "162.9031",
+      "short_distance": "-602 pips",
+      "long_distance": "-250 pips",
+      "current_rate": "160.403",
+      "detailed": {
+        "short": {
+          "percentage": "62",
+          "volume": "647.52 lots",
+          "positions": "2491"
+        },
+        "popularity": "3"
+      }
+    },
+    "AUDCAD": {
+      "short_percentage": 35,
+      "long_percentage": 65,
+      "short_price": "0.9029",
+      "long_price": "0.9071",
+      "short_distance": "-40 pips",
+      "long_distance": "-2 pips",
+      "current_rate": "0.90689",
+      "detailed": {
+        "short": {
+          "percentage": "35",
+          "volume": "904.17 lots",
+          "positions": "8469"
+        },
+        "popularity": "18"
+      }
+    },
+    "AUDJPY": {
+      "short_percentage": 24,
+      "long_percentage": 76,
+      "short_price": "90.9918",
+      "long_price": "96.3729",
+      "short_distance": "-181 pips",
+      "long_distance": "-357 pips",
+      "current_rate": "92.805",
+      "detailed": {
+        "short": {
+          "percentage": "24",
+          "volume": "68.76 lots",
+          "positions": "676"
+        },
+        "popularity": "1"
+      }
+    },
+    "AUDNZD": {
+      "short_percentage": 31,
+      "long_percentage": 69,
+      "short_price": "1.0962",
+      "long_price": "1.1074",
+      "short_distance": "-54 pips",
+      "long_distance": "-58 pips",
+      "current_rate": "1.10162",
+      "detailed": {
+        "short": {
+          "percentage": "31",
+          "volume": "1175.60 lots",
+          "positions": "9642"
+        },
+        "popularity": "12"
+      }
+    },
+    "AUDUSD": {
+      "short_percentage": 23,
+      "long_percentage": 77,
+      "short_price": "0.6279",
+      "long_price": "0.6492",
+      "short_distance": "-11 pips",
+      "long_distance": "-202 pips",
+      "current_rate": "0.62901",
+      "detailed": {
+        "short": {
+          "percentage": "23",
+          "volume": "803.27 lots",
+          "positions": "4046"
+        },
+        "popularity": "9"
+      }
+    },
+    "CADJPY": {
+      "short_percentage": 16,
+      "long_percentage": 84,
+      "short_price": "101.1797",
+      "long_price": "106.0557",
+      "short_distance": "-115 pips",
+      "long_distance": "-373 pips",
+      "current_rate": "102.325",
+      "detailed": {
+        "short": {
+          "percentage": "16",
+          "volume": "42.41 lots",
+          "positions": "561"
+        },
+        "popularity": "1"
+      }
+    },
+    "EURCAD": {
+      "short_percentage": 87,
+      "long_percentage": 13,
+      "short_price": "1.5316",
+      "long_price": "1.5644",
+      "short_distance": "-359 pips",
+      "long_distance": "+31 pips",
+      "current_rate": "1.56749",
+      "detailed": {
+        "short": {
+          "percentage": "87",
+          "volume": "1202.06 lots",
+          "positions": "7992"
+        },
+        "popularity": "4"
+      }
+    },
+    "EURCHF": {
+      "short_percentage": 69,
+      "long_percentage": 31,
+      "short_price": "0.9493",
+      "long_price": "0.9776",
+      "short_distance": "-120 pips",
+      "long_distance": "-163 pips",
+      "current_rate": "0.96130",
+      "detailed": {
+        "short": {
+          "percentage": "69",
+          "volume": "591.86 lots",
+          "positions": "2869"
+        },
+        "popularity": "3"
+      }
+    },
+    "EURCZK": {
+      "short_percentage": 0,
+      "long_percentage": 100,
+      "short_price": "0",
+      "long_price": "24.9887",
+      "short_distance": "-250407 pips",
+      "long_distance": "+520 pips",
+      "current_rate": "25.04073",
+      "detailed": {
+        "short": {
+          "percentage": "0",
+          "volume": "0.00 lots",
+          "positions": "0"
+        },
+        "popularity": "0"
+      }
+    },
+    "EURGBP": {
+      "short_percentage": 75,
+      "long_percentage": 25,
+      "short_price": "0.8364",
+      "long_price": "0.8441",
+      "short_distance": "-31 pips",
+      "long_distance": "-46 pips",
+      "current_rate": "0.83947",
+      "detailed": {
+        "short": {
+          "percentage": "75",
+          "volume": "1991.84 lots",
+          "positions": "11450"
+        },
+        "popularity": "12"
+      }
+    },
+    "EURHUF": {
+      "short_percentage": 39,
+      "long_percentage": 61,
+      "short_price": "396.5162",
+      "long_price": "404.7436",
+      "short_distance": "-299 pips",
+      "long_distance": "-524 pips",
+      "current_rate": "399.50",
+      "detailed": {
+        "short": {
+          "percentage": "39",
+          "volume": "5.36 lots",
+          "positions": "39"
+        },
+        "popularity": "0"
+      }
+    },
+    "EURNOK": {
+      "short_percentage": 6,
+      "long_percentage": 94,
+      "short_price": "8.0700",
+      "long_price": "11.6704",
+      "short_distance": "-35328 pips",
+      "long_distance": "-676 pips",
+      "current_rate": "11.6028",
+      "detailed": {
+        "short": {
+          "percentage": "6",
+          "volume": "0.01 lots",
+          "positions": "1"
+        },
+        "popularity": "0"
+      }
+    },
+    "EURNZD": {
+      "short_percentage": 94,
+      "long_percentage": 6,
+      "short_price": "1.8519",
+      "long_price": "1.8960",
+      "short_distance": "-521 pips",
+      "long_distance": "+80 pips",
+      "current_rate": "1.90398",
+      "detailed": {
+        "short": {
+          "percentage": "94",
+          "volume": "909.94 lots",
+          "positions": "4999"
+        },
+        "popularity": "2"
+      }
+    },
+    "EURPLN": {
+      "short_percentage": 54,
+      "long_percentage": 46,
+      "short_price": "4.1737",
+      "long_price": "4.2074",
+      "short_distance": "-119 pips",
+      "long_distance": "-218 pips",
+      "current_rate": "4.18561",
+      "detailed": {
+        "short": {
+          "percentage": "54",
+          "volume": "2.50 lots",
+          "positions": "21"
+        },
+        "popularity": "0"
+      }
+    },
+    "EURSEK": {
+      "short_percentage": 4,
+      "long_percentage": 96,
+      "short_price": "11.0184",
+      "long_price": "11.0959",
+      "short_distance": "-540 pips",
+      "long_distance": "-235 pips",
+      "current_rate": "11.0724",
+      "detailed": {
+        "short": {
+          "percentage": "4",
+          "volume": "0.06 lots",
+          "positions": "2"
+        },
+        "popularity": "0"
+      }
+    },
+    "EURTRY": {
+      "short_percentage": 87,
+      "long_percentage": 13,
+      "short_price": "28.6721",
+      "long_price": "36.5741",
+      "short_distance": "-112019 pips",
+      "long_distance": "+32999 pips",
+      "current_rate": "39.87402",
+      "detailed": {
+        "short": {
+          "percentage": "87",
+          "volume": "1.72 lots",
+          "positions": "23"
+        },
+        "popularity": "0"
+      }
+    },
+    "GBPCAD": {
+      "short_percentage": 96,
+      "long_percentage": 4,
+      "short_price": "1.8249",
+      "long_price": "1.8564",
+      "short_distance": "-424 pips",
+      "long_distance": "+109 pips",
+      "current_rate": "1.86727",
+      "detailed": {
+        "short": {
+          "percentage": "96",
+          "volume": "3176.12 lots",
+          "positions": "9742"
+        },
+        "popularity": "4"
+      }
+    },
+    "GBPCHF": {
+      "short_percentage": 54,
+      "long_percentage": 46,
+      "short_price": "1.1343",
+      "long_price": "1.1550",
+      "short_distance": "-108 pips",
+      "long_distance": "-99 pips",
+      "current_rate": "1.14506",
+      "detailed": {
+        "short": {
+          "percentage": "54",
+          "volume": "94.58 lots",
+          "positions": "964"
+        },
+        "popularity": "1"
+      }
+    },
+    "NZDCAD": {
+      "short_percentage": 44,
+      "long_percentage": 56,
+      "short_price": "0.8184",
+      "long_price": "0.8248",
+      "short_distance": "-48 pips",
+      "long_distance": "-16 pips",
+      "current_rate": "0.82323",
+      "detailed": {
+        "short": {
+          "percentage": "44",
+          "volume": "812.90 lots",
+          "positions": "9527"
+        },
+        "popularity": "11"
+      }
+    },
+    "NZDJPY": {
+      "short_percentage": 34,
+      "long_percentage": 66,
+      "short_price": "84.1428",
+      "long_price": "87.7623",
+      "short_distance": "-9 pips",
+      "long_distance": "-353 pips",
+      "current_rate": "84.237",
+      "detailed": {
+        "short": {
+          "percentage": "34",
+          "volume": "91.77 lots",
+          "positions": "566"
+        },
+        "popularity": "1"
+      }
+    },
+    "NZDUSD": {
+      "short_percentage": 15,
+      "long_percentage": 85,
+      "short_price": "0.5707",
+      "long_price": "0.5914",
+      "short_distance": "-3 pips",
+      "long_distance": "-204 pips",
+      "current_rate": "0.57098",
+      "detailed": {
+        "short": {
+          "percentage": "15",
+          "volume": "626.46 lots",
+          "positions": "2398"
+        },
+        "popularity": "8"
+      }
+    },
+    "USDCHF": {
+      "short_percentage": 24,
+      "long_percentage": 76,
+      "short_price": "0.8777",
+      "long_price": "0.8957",
+      "short_distance": "-66 pips",
+      "long_distance": "-114 pips",
+      "current_rate": "0.88426",
+      "detailed": {
+        "short": {
+          "percentage": "24",
+          "volume": "487.91 lots",
+          "positions": "3475"
+        },
+        "popularity": "7"
+      }
+    },
+    "USDCZK": {
+      "short_percentage": 46,
+      "long_percentage": 54,
+      "short_price": "22.8611",
+      "long_price": "23.4053",
+      "short_distance": "-1693 pips",
+      "long_distance": "-3749 pips",
+      "current_rate": "23.03037",
+      "detailed": {
+        "short": {
+          "percentage": "46",
+          "volume": "3.28 lots",
+          "positions": "2"
+        },
+        "popularity": "0"
+      }
+    },
+    "USDHUF": {
+      "short_percentage": 14,
+      "long_percentage": 86,
+      "short_price": "357.1974",
+      "long_price": "377.5654",
+      "short_distance": "-1027 pips",
+      "long_distance": "-1010 pips",
+      "current_rate": "367.46",
+      "detailed": {
+        "short": {
+          "percentage": "14",
+          "volume": "1.11 lots",
+          "positions": "23"
+        },
+        "popularity": "0"
+      }
+    },
+    "USDMXN": {
+      "short_percentage": 35,
+      "long_percentage": 65,
+      "short_price": "18.9354",
+      "long_price": "19.9854",
+      "short_distance": "-11482 pips",
+      "long_distance": "+982 pips",
+      "current_rate": "20.0836",
+      "detailed": {
+        "short": {
+          "percentage": "35",
+          "volume": "3.03 lots",
+          "positions": "85"
+        },
+        "popularity": "0"
+      }
+    },
+    "USDNOK": {
+      "short_percentage": 14,
+      "long_percentage": 86,
+      "short_price": "10.7925",
+      "long_price": "10.8796",
+      "short_distance": "+1198 pips",
+      "long_distance": "-2069 pips",
+      "current_rate": "10.67266",
+      "detailed": {
+        "short": {
+          "percentage": "14",
+          "volume": "1.93 lots",
+          "positions": "3"
+        },
+        "popularity": "0"
+      }
+    },
+    "USDPLN": {
+      "short_percentage": 40,
+      "long_percentage": 60,
+      "short_price": "3.8385",
+      "long_price": "3.9057",
+      "short_distance": "-107 pips",
+      "long_distance": "-565 pips",
+      "current_rate": "3.84922",
+      "detailed": {
+        "short": {
+          "percentage": "40",
+          "volume": "8.08 lots",
+          "positions": "2"
+        },
+        "popularity": "0"
+      }
+    },
+    "USDSEK": {
+      "short_percentage": 0,
+      "long_percentage": 100,
+      "short_price": "10.1724",
+      "long_price": "10.4531",
+      "short_distance": "-126 pips",
+      "long_distance": "-2681 pips",
+      "current_rate": "10.1850",
+      "detailed": {
+        "short": {
+          "percentage": "0",
+          "volume": "0.02 lots",
+          "positions": "1"
+        },
+        "popularity": "0"
+      }
+    },
+    "USDSGD": {
+      "short_percentage": 51,
+      "long_percentage": 49,
+      "short_price": "1.3257",
+      "long_price": "1.3409",
+      "short_distance": "-94 pips",
+      "long_distance": "-58 pips",
+      "current_rate": "1.33509",
+      "detailed": {
+        "short": {
+          "percentage": "51",
+          "volume": "13.87 lots",
+          "positions": "131"
+        },
+        "popularity": "0"
+      }
+    },
+    "USDTHB": {
+      "short_percentage": 55,
+      "long_percentage": 45,
+      "short_price": "33.7562",
+      "long_price": "34.3340",
+      "short_distance": "+656 pips",
+      "long_distance": "-6434 pips",
+      "current_rate": "33.69059",
+      "detailed": {
+        "short": {
+          "percentage": "55",
+          "volume": "2.90 lots",
+          "positions": "13"
+        },
+        "popularity": "0"
+      }
+    },
+    "USDTRY": {
+      "short_percentage": 100,
+      "long_percentage": 0,
+      "short_price": "33.3011",
+      "long_price": "0",
+      "short_distance": "-33022 pips",
+      "long_distance": "+366033 pips",
+      "current_rate": "36.60328",
+      "detailed": {
+        "short": {
+          "percentage": "100",
+          "volume": "1.58 lots",
+          "positions": "20"
+        },
+        "popularity": "0"
+      }
+    },
+    "USDZAR": {
+      "short_percentage": 58,
+      "long_percentage": 42,
+      "short_price": "17.0476",
+      "long_price": "18.0754",
+      "short_distance": "-12425 pips",
+      "long_distance": "+2147 pips",
+      "current_rate": "18.29012",
+      "detailed": {
+        "short": {
+          "percentage": "58",
+          "volume": "0.88 lots",
+          "positions": "16"
+        },
+        "popularity": "0"
+      }
+    },
+    "CHFJPY": {
+      "short_percentage": 37,
+      "long_percentage": 63,
+      "short_price": "156.5900",
+      "long_price": "170.4546",
+      "short_distance": "-1027 pips",
+      "long_distance": "-360 pips",
+      "current_rate": "166.857",
+      "detailed": {
+        "short": {
+          "percentage": "37",
+          "volume": "157.03 lots",
+          "positions": "926"
+        },
+        "popularity": "1"
+      }
+    },
+    "AUDCHF": {
+      "short_percentage": 7,
+      "long_percentage": 93,
+      "short_price": "0.5613",
+      "long_price": "0.5801",
+      "short_distance": "+51 pips",
+      "long_distance": "-239 pips",
+      "current_rate": "0.55616",
+      "detailed": {
+        "short": {
+          "percentage": "7",
+          "volume": "61.47 lots",
+          "positions": "906"
+        },
+        "popularity": "3"
+      }
+    },
+    "GBPNZD": {
+      "short_percentage": 66,
+      "long_percentage": 34,
+      "short_price": "2.2153",
+      "long_price": "2.2066",
+      "short_distance": "-528 pips",
+      "long_distance": "+615 pips",
+      "current_rate": "2.26805",
+      "detailed": {
+        "short": {
+          "percentage": "66",
+          "volume": "1192.25 lots",
+          "positions": "4437"
+        },
+        "popularity": "3"
+      }
+    },
+    "NZDCHF": {
+      "short_percentage": 10,
+      "long_percentage": 90,
+      "short_price": "0.5098",
+      "long_price": "0.5240",
+      "short_distance": "+50 pips",
+      "long_distance": "-192 pips",
+      "current_rate": "0.50480",
+      "detailed": {
+        "short": {
+          "percentage": "10",
+          "volume": "60.64 lots",
+          "positions": "655"
+        },
+        "popularity": "5"
+      }
+    },
+    "XAGUSD": {
+      "short_percentage": 78,
+      "long_percentage": 22,
+      "short_price": "31.5486",
+      "long_price": "32.7137",
+      "short_distance": "-216 pips",
+      "long_distance": "+100 pips",
+      "current_rate": "33.71",
+      "detailed": {
+        "short": {
+          "percentage": "78",
+          "volume": "488.70 lots",
+          "positions": "1856"
+        },
+        "popularity": "1"
+      }
+    },
+    "XAUUSD": {
+      "short_percentage": 77,
+      "long_percentage": 23,
+      "short_price": "2817.4777",
+      "long_price": "2859.3737",
+      "short_distance": "-16144 pips",
+      "long_distance": "+11955 pips",
+      "current_rate": "2,978.92",
+      "detailed": {
+        "short": {
+          "percentage": "77",
+          "volume": "6042.17 lots",
+          "positions": "28637"
+        },
+        "popularity": "20"
+      }
+    },
+    "CADCHF": {
+      "short_percentage": 5,
+      "long_percentage": 95,
+      "short_price": "0.6170",
+      "long_price": "0.6398",
+      "short_distance": "+38 pips",
+      "long_distance": "-266 pips",
+      "current_rate": "0.61321",
+      "detailed": {
+        "short": {
+          "percentage": "5",
+          "volume": "97.25 lots",
+          "positions": "724"
+        },
+        "popularity": "7"
+      }
+    },
+    "GBPAUD": {
+      "short_percentage": 96,
+      "long_percentage": 4,
+      "short_price": "2.0046",
+      "long_price": "2.0449",
+      "short_distance": "-542 pips",
+      "long_distance": "+139 pips",
+      "current_rate": "2.05879",
+      "detailed": {
+        "short": {
+          "percentage": "96",
+          "volume": "1462.62 lots",
+          "positions": "4248"
+        },
+        "popularity": "2"
+      }
+    },
+    "SGDJPY": {
+      "short_percentage": 0,
+      "long_percentage": 100,
+      "short_price": "0",
+      "long_price": "111.8491",
+      "short_distance": "-11050 pips",
+      "long_distance": "-135 pips",
+      "current_rate": "110.501",
+      "detailed": {
+        "short": {
+          "percentage": "0",
+          "volume": "0.00 lots",
+          "positions": "0"
+        },
+        "popularity": "0"
+      }
+    },
+    "GBPNOK": {
+      "short_percentage": 19,
+      "long_percentage": 81,
+      "short_price": "13.7649",
+      "long_price": "13.9406",
+      "short_distance": "-562 pips",
+      "long_distance": "-1195 pips",
+      "current_rate": "13.82106",
+      "detailed": {
+        "short": {
+          "percentage": "19",
+          "volume": "0.49 lots",
+          "positions": "1"
+        },
+        "popularity": "0"
+      }
+    },
+    "EURZAR": {
+      "short_percentage": 95,
+      "long_percentage": 5,
+      "short_price": "17.8908",
+      "long_price": "19.7538",
+      "short_distance": "-19923 pips",
+      "long_distance": "+1293 pips",
+      "current_rate": "19.88307",
+      "detailed": {
+        "short": {
+          "percentage": "95",
+          "volume": "2.09 lots",
+          "positions": "83"
+        },
+        "popularity": "0"
+      }
+    },
+    "AUDSGD": {
+      "short_percentage": 21,
+      "long_percentage": 79,
+      "short_price": "0.9484",
+      "long_price": "0.8765",
+      "short_distance": "+1087 pips",
+      "long_distance": "-368 pips",
+      "current_rate": "0.83974",
+      "detailed": {
+        "short": {
+          "percentage": "21",
+          "volume": "1.53 lots",
+          "positions": "118"
+        },
+        "popularity": "0"
+      }
+    },
+    "GBPSEK": {
+      "short_percentage": 10,
+      "long_percentage": 90,
+      "short_price": "13.0623",
+      "long_price": "13.4461",
+      "short_distance": "-1271 pips",
+      "long_distance": "-2567 pips",
+      "current_rate": "13.18943",
+      "detailed": {
+        "short": {
+          "percentage": "10",
+          "volume": "0.46 lots",
+          "positions": "3"
+        },
+        "popularity": "0"
+      }
+    },
+    "CHFSGD": {
+      "short_percentage": 86,
+      "long_percentage": 14,
+      "short_price": "1.5149",
+      "long_price": "1.5127",
+      "short_distance": "+51 pips",
+      "long_distance": "-29 pips",
+      "current_rate": "1.50981",
+      "detailed": {
+        "short": {
+          "percentage": "86",
+          "volume": "1.63 lots",
+          "positions": "21"
+        },
+        "popularity": "0"
+      }
+    },
+    "EURSGD": {
+      "short_percentage": 83,
+      "long_percentage": 17,
+      "short_price": "1.4282",
+      "long_price": "1.4597",
+      "short_distance": "-232 pips",
+      "long_distance": "-83 pips",
+      "current_rate": "1.45137",
+      "detailed": {
+        "short": {
+          "percentage": "83",
+          "volume": "236.41 lots",
+          "positions": "1061"
+        },
+        "popularity": "0"
+      }
+    },
+    "GBPSGD": {
+      "short_percentage": 98,
+      "long_percentage": 2,
+      "short_price": "1.7150",
+      "long_price": "1.7469",
+      "short_distance": "-140 pips",
+      "long_distance": "-179 pips",
+      "current_rate": "1.72896",
+      "detailed": {
+        "short": {
+          "percentage": "98",
+          "volume": "17.42 lots",
+          "positions": "68"
+        },
+        "popularity": "0"
+      }
+    },
+    "XAUGBP": {
+      "short_percentage": 98,
+      "long_percentage": 2,
+      "short_price": "2252.2755",
+      "long_price": "2280.6000",
+      "short_distance": "-4784 pips",
+      "long_distance": "+1952 pips",
+      "current_rate": "2,300.12",
+      "detailed": {
+        "short": {
+          "percentage": "98",
+          "volume": "3.20 lots",
+          "positions": "40"
+        },
+        "popularity": "0"
+      }
+    },
+    "NOKJPY": {
+      "short_percentage": 0,
+      "long_percentage": 100,
+      "short_price": "0",
+      "long_price": "13.2700",
+      "short_distance": "-1381 pips",
+      "long_distance": "+54 pips",
+      "current_rate": "13.810",
+      "detailed": {
+        "short": {
+          "percentage": "0",
+          "volume": "0.00 lots",
+          "positions": "0"
+        },
+        "popularity": "0"
+      }
+    },
+    "ZARJPY": {
+      "short_percentage": 0,
+      "long_percentage": 100,
+      "short_price": "0",
+      "long_price": "7.9770",
+      "short_distance": "-806 pips",
+      "long_distance": "+8 pips",
+      "current_rate": "8.060",
+      "detailed": {
+        "short": {
+          "percentage": "0",
+          "volume": "0.00 lots",
+          "positions": "0"
+        },
+        "popularity": "0"
+      }
+    },
+    "GBPTRY": {
+      "short_percentage": 100,
+      "long_percentage": 0,
+      "short_price": "46.2600",
+      "long_price": "0",
+      "short_distance": "-12332 pips",
+      "long_distance": "+474932 pips",
+      "current_rate": "47.49316",
+      "detailed": {
+        "short": {
+          "percentage": "100",
+          "volume": "0.60 lots",
+          "positions": "2"
+        },
+        "popularity": "0"
+      }
+    },
+    "USDRUB": {
+      "short_percentage": 0,
+      "long_percentage": 100,
+      "short_price": "0",
+      "long_price": "88.6463",
+      "short_distance": "-915413 pips",
+      "long_distance": "+28950 pips",
+      "current_rate": "91.54129",
+      "detailed": {
+        "short": {
+          "percentage": "0",
+          "volume": "0.00 lots",
+          "positions": "0"
+        },
+        "popularity": "0"
+      }
+    },
+    "SEKJPY": {
+      "short_percentage": 100,
+      "long_percentage": 0,
+      "short_price": "14.0340",
+      "long_price": "0",
+      "short_distance": "-42 pips",
+      "long_distance": "+1445 pips",
+      "current_rate": "14.451",
+      "detailed": {
+        "short": {
+          "percentage": "100",
+          "volume": "0.01 lots",
+          "positions": "1"
+        },
+        "popularity": "0"
+      }
+    },
+    "EURMXN": {
+      "short_percentage": 100,
+      "long_percentage": 0,
+      "short_price": "19.0742",
+      "long_price": "21.8375",
+      "short_distance": "-27595 pips",
+      "long_distance": "-38 pips",
+      "current_rate": "21.8337",
+      "detailed": {
+        "short": {
+          "percentage": "100",
+          "volume": "6.68 lots",
+          "positions": "206"
+        },
+        "popularity": "0"
+      }
+    },
+    "XAUAUD": {
+      "short_percentage": 88,
+      "long_percentage": 12,
+      "short_price": "4574.2976",
+      "long_price": "4695.9729",
+      "short_distance": "-16149 pips",
+      "long_distance": "+3982 pips",
+      "current_rate": "4,735.79",
+      "detailed": {
+        "short": {
+          "percentage": "88",
+          "volume": "0.79 lots",
+          "positions": "29"
+        },
+        "popularity": "0"
+      }
+    },
+    "XAUEUR": {
+      "short_percentage": 55,
+      "long_percentage": 45,
+      "short_price": "2622.2897",
+      "long_price": "2710.0201",
+      "short_distance": "-11778 pips",
+      "long_distance": "+3005 pips",
+      "current_rate": "2,740.07",
+      "detailed": {
+        "short": {
+          "percentage": "55",
+          "volume": "20.13 lots",
+          "positions": "113"
+        },
+        "popularity": "0"
+      }
+    },
+    "XAUJPY": {
+      "short_percentage": 4,
+      "long_percentage": 96,
+      "short_price": "412416.7500",
+      "long_price": "440131.7742",
+      "short_distance": "-27073 pips",
+      "long_distance": "-642 pips",
+      "current_rate": "439,490",
+      "detailed": {
+        "short": {
+          "percentage": "4",
+          "volume": "0.07 lots",
+          "positions": "4"
+        },
+        "popularity": "0"
+      }
+    },
+    "XAUCHF": {
+      "short_percentage": 89,
+      "long_percentage": 11,
+      "short_price": "2390.6150",
+      "long_price": "2558.4400",
+      "short_distance": "+61991 pips",
+      "long_distance": "-78774 pips",
+      "current_rate": "1,770.70",
+      "detailed": {
+        "short": {
+          "percentage": "89",
+          "volume": "0.08 lots",
+          "positions": "2"
+        },
+        "popularity": "0"
+      }
+    },
+    "GBPMXN": {
+      "short_percentage": 98,
+      "long_percentage": 2,
+      "short_price": "25.9886",
+      "long_price": "25.9836",
+      "short_distance": "-191 pips",
+      "long_distance": "+241 pips",
+      "current_rate": "26.0077",
+      "detailed": {
+        "short": {
+          "percentage": "98",
+          "volume": "0.86 lots",
+          "positions": "9"
+        },
+        "popularity": "0"
+      }
+    },
+    "XAGAUD": {
+      "short_percentage": 100,
+      "long_percentage": 0,
+      "short_price": "44.5636",
+      "long_price": "0",
+      "short_distance": "-904 pips",
+      "long_distance": "+5360 pips",
+      "current_rate": "53.604",
+      "detailed": {
+        "short": {
+          "percentage": "100",
+          "volume": "0.17 lots",
+          "positions": "11"
+        },
+        "popularity": "0"
+      }
+    },
+    "NOKSEK": {
+      "short_percentage": 0,
+      "long_percentage": 100,
+      "short_price": "0",
+      "long_price": "1.0298",
+      "short_distance": "-9538 pips",
+      "long_distance": "-760 pips",
+      "current_rate": "0.9538",
+      "detailed": {
+        "short": {
+          "percentage": "0",
+          "volume": "0.00 lots",
+          "positions": "0"
+        },
+        "popularity": "0"
+      }
+    },
+    "XAGEUR": {
+      "short_percentage": 43,
+      "long_percentage": 57,
+      "short_price": "25.1663",
+      "long_price": "30.3708",
+      "short_distance": "-585 pips",
+      "long_distance": "+64 pips",
+      "current_rate": "31.013",
+      "detailed": {
+        "short": {
+          "percentage": "43",
+          "volume": "0.03 lots",
+          "positions": "3"
+        },
+        "popularity": "0"
+      }
+    },
+    "XPTUSD": {
+      "short_percentage": 13,
+      "long_percentage": 88,
+      "short_price": "958.7900",
+      "long_price": "983.2286",
+      "short_distance": "-3444 pips",
+      "long_distance": "+1000 pips",
+      "current_rate": "993.23",
+      "detailed": {
+        "short": {
+          "percentage": "13",
+          "volume": "0.01 lots",
+          "positions": "1"
+        },
+        "popularity": "0"
+      }
+    },
+    "XPDUSD": {
+      "short_percentage": 0,
+      "long_percentage": 100,
+      "short_price": "0",
+      "long_price": "990.6360",
+      "short_distance": "-95841 pips",
+      "long_distance": "-3223 pips",
+      "current_rate": "958.41",
+      "detailed": {
+        "short": {
+          "percentage": "0",
+          "volume": "0.00 lots",
+          "positions": "0"
+        },
+        "popularity": "0"
+      }
+    },
+    "USDCNH": {
+      "short_percentage": 9,
+      "long_percentage": 91,
+      "short_price": "6.8992",
+      "long_price": "7.2848",
+      "short_distance": "-3458 pips",
+      "long_distance": "-398 pips",
+      "current_rate": "7.2450",
+      "detailed": {
+        "short": {
+          "percentage": "9",
+          "volume": "0.47 lots",
+          "positions": "28"
+        },
+        "popularity": "0"
+      }
+    }
+  }
+}

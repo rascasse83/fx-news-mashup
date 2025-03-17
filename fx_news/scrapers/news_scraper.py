@@ -18,6 +18,19 @@ from transformers import BertTokenizer, BertForSequenceClassification
 import torch
 from typing import List, Dict, Tuple, Set, Any, Optional, Union
 import streamlit as st
+import os
+import sys
+
+# Add the project root directory to the Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+
+# Set up logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', 
+    level=logging.INFO
+)
+logger = logging.getLogger("new scraping - yahoo")
+logger.setLevel(logging.INFO)  # Set to INFO for production, DEBUG for development
 
 # Session tracking sets to avoid re-processing the same content
 SESSION_PROCESSED_URLS = set()
@@ -1005,7 +1018,7 @@ def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo
     Load previously saved news articles from filesystem
     
     Args:
-        symbol: Currency pair symbol (e.g., "BTC_USD")
+        symbol: Currency pair symbol (e.g., "BTC_USD") or index (e.g., "dji")
         folder: Folder where articles are stored
         max_days_old: Maximum age of articles to load in days
     
@@ -1017,9 +1030,34 @@ def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo
     symbol = symbol.lower()
     loaded_news = []
     
-    # Get files for this symbol
+    # Get files for this symbol - Use exact symbol match from filename
     pattern = os.path.join(folder, f"*_{symbol}.txt")
     files = glob.glob(pattern)
+    
+    # For indices, use a more targeted pattern
+    if symbol.startswith('^') or symbol.startswith('dji') or symbol.startswith('gspc'):
+        pattern = os.path.join(folder, f"*_{symbol.replace('^', '')}.txt")
+        more_files = glob.glob(pattern)
+        files.extend(more_files)
+        
+    # If we're looking for a currency pair like EUR_USD, also look for permutations
+    if '_' in symbol:
+        base, quote = symbol.split('_')
+        # Check if there are any files that match either currency individually
+        base_pattern = os.path.join(folder, f"*_{base}.txt")
+        base_files = glob.glob(base_pattern)
+        
+        quote_pattern = os.path.join(folder, f"*_{quote}.txt")
+        quote_files = glob.glob(quote_pattern)
+        
+        # Only use these files if specifically looking for this pair
+        # Don't do this for general market news
+        if base != 'market' and quote != 'market':
+            files.extend(base_files)
+            files.extend(quote_files)
+    
+    # Remove duplicates
+    files = list(set(files))
     
     # Sort by timestamp (newest first)
     files.sort(reverse=True)
@@ -1102,12 +1140,75 @@ def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo
                         summary = part.strip()
                         break
             
-            # Get currency pair from symbol
-            symbol_parts = symbol.split('_')
-            if len(symbol_parts) == 2:
-                currency = f"{symbol_parts[0].upper()}/{symbol_parts[1].upper()}"
+            # IMPORTANT: Extract the currency pair directly from the filename
+            # This is the key change to ensure correct currency pair matching
+            currency_pair_match = re.search(r'article_\d+_([a-z0-9]+)_([a-z0-9]+)\.txt$', filename.lower())
+            
+            if currency_pair_match:
+                base_currency = currency_pair_match.group(1).upper()
+                quote_currency = currency_pair_match.group(2).upper()
+                
+                # Special handling for indices
+                if base_currency in ['DJI', 'GSPC', 'IXIC', 'FTSE', 'GDAXI', 'FCHI', 'N225']:
+                    # This is an index, use proper format
+                    indices_map = {
+                        'DJI': 'Dow Jones',
+                        'GSPC': 'S&P 500',
+                        'IXIC': 'NASDAQ',
+                        'FTSE': 'FTSE 100',
+                        'GDAXI': 'DAX',
+                        'FCHI': 'CAC 40',
+                        'N225': 'Nikkei 225'
+                    }
+                    index_name = indices_map.get(base_currency, base_currency)
+                    currency = index_name
+                    currency_pairs = {index_name}
+                else:
+                    # Regular currency pair
+                    currency = f"{base_currency}/{quote_currency}"
+                    currency_pairs = {currency}
+                
+                logger.info(f"Extracted currency pair from filename: {currency}")
             else:
-                currency = symbol.upper()
+                # Handle single-currency files (like indices without quote)
+                indices_pattern = re.search(r'article_\d+_([a-z0-9]+)\.txt$', filename.lower())
+                if indices_pattern:
+                    currency_code = indices_pattern.group(1).upper()
+                    # Check if this is an index code
+                    indices_map = {
+                        'DJI': 'Dow Jones',
+                        'GSPC': 'S&P 500',
+                        'IXIC': 'NASDAQ',
+                        'FTSE': 'FTSE 100',
+                        'GDAXI': 'DAX',
+                        'FCHI': 'CAC 40',
+                        'N225': 'Nikkei 225'
+                    }
+                    
+                    if currency_code in indices_map:
+                        currency = indices_map[currency_code]
+                        currency_pairs = {currency}
+                        logger.info(f"Found index file: {currency}")
+                    else:
+                        # Probably a single currency
+                        currency = currency_code
+                        currency_pairs = {currency}
+                        logger.info(f"Found single currency file: {currency}")
+                else:
+                    # Fall back to the passed symbol if all regex patterns fail
+                    logger.warning(f"All regex patterns failed for: {filename}")
+                    
+                    # For requested currency pairs, use the original pair
+                    if '_' in symbol:
+                        base, quote = symbol.split('_')
+                        currency = f"{base.upper()}/{quote.upper()}"
+                        currency_pairs = {currency}
+                    else:
+                        # Use the symbol as is
+                        currency = symbol.upper()
+                        currency_pairs = {currency}
+                    
+                    logger.warning(f"No match found, defaulting to: {currency}")
             
             # Extract sentiment and score from the file if available
             sentiment_label = "neutral"  # Default sentiment
@@ -1127,56 +1228,39 @@ def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo
                 except ValueError:
                     logger.warning(f"Could not parse sentiment score from file: {score_match.group(1)}")
             
+            # For the requested symbol, make sure we associate it correctly
+            # This ensures we link news to the right currency pair when explicitly requested
+            if '_' in symbol and symbol != 'market_news':
+                base, quote = symbol.split('_')
+                base = base.upper()
+                quote = quote.upper()
+                request_pair = f"{base}/{quote}"
+                
+                # Add the requested pair to the currency pairs
+                currency_pairs.add(request_pair)
+                
+                # If this is an empty or default currency from above, use the requested one
+                if currency == "UNKNOWN" or currency == symbol.upper():
+                    currency = request_pair
+            
             # Create news item
             news_item = {
                 "title": title,
                 "timestamp": timestamp,
                 "unix_timestamp": file_timestamp,
                 "currency": currency,
+                "currency_pairs": currency_pairs,  # Store as a set for easier matching
                 "source": source,
                 "url": url,
                 "summary": summary,
                 "related_tickers": [],
-                "file_path": file_path,  # Add this line to store the file path
+                "file_path": file_path,  # Store the file path
                 "sentiment": sentiment_label,
                 "score": sentiment_score
             }
             
-            # Only recalculate sentiment if not found in the file
-            if not sentiment_match or not score_match:
-                logger.info(f"No saved sentiment found for {filename}, calculating now")
-                # Calculate sentiment using title and summary
-                text_for_sentiment = title + " " + summary
-                try:
-                    # First try with FinBERT for faster processing
-                    sentiment_label, sentiment_score = analyze_sentiment(text_for_sentiment, 'finbert')
-                    
-                    # Then with the ensemble if API key is available
-                    if 'api_key' in globals() and api_key:
-                        sentiment_label, sentiment_score = analyze_sentiment(
-                            text_for_sentiment, 
-                            mode='ensemble', 
-                            api_key='1i1PR8oSJwazWAyOj3iXiRoiCThZI6qj'
-                        )
-                    
-                    # Update the news item
-                    news_item["sentiment"] = sentiment_label
-                    news_item["score"] = sentiment_score
-                    
-                    # Optionally, update the file with the calculated sentiment
-                    try:
-                        with open(file_path, 'a', encoding='utf-8') as f:
-                            f.write(f"\n\n---\nSENTIMENT: {sentiment_label}\n")
-                            f.write(f"SCORE: {sentiment_score}\n")
-                        logger.info(f"Updated file {filename} with calculated sentiment")
-                    except Exception as e:
-                        logger.warning(f"Could not update file with sentiment: {str(e)}")
-                        
-                except Exception as e:
-                    logger.error(f"Error calculating sentiment: {str(e)}")
-            
             loaded_news.append(news_item)
-            logger.info(f"Loaded news item from {file_path}: {title} ({timestamp.isoformat()}) - {sentiment_label} ({sentiment_score})")
+            logger.info(f"Loaded news item from {file_path}: {title} ({timestamp.isoformat()}) - {sentiment_label} ({sentiment_score}) - Currency: {currency}")
             
         except Exception as e:
             logger.error(f"Error loading news from file {file_path}: {str(e)}")
@@ -1426,7 +1510,7 @@ def scrape_yahoo_finance_news(
     if not force_refresh:
         time_since_last_refresh = current_time - last_refresh_time
         if time_since_last_refresh < REFRESH_BACKOFF_THRESHOLD:
-            print(f"Backing off. Only {time_since_last_refresh} seconds since last refresh (threshold: {REFRESH_BACKOFF_THRESHOLD})")
+            logger.info(f"Backing off. Only {time_since_last_refresh} seconds since last refresh (threshold: {REFRESH_BACKOFF_THRESHOLD})")
             return None
 
     # Create a robots.txt parser if we're respecting robots.txt
@@ -1754,13 +1838,40 @@ def create_mock_news(currencies=None):
 
 # Example usage
 if __name__ == "__main__":
- #   currency_pairs = [("EUR", "USD"), ("GBP", "USD"), ("USD", "JPY")]
-    currency_pairs = [("^DJI", "USD"), ("GBP", "USD"), ("USD", "JPY")]    
-    news = scrape_yahoo_finance_news(currency_pairs, max_articles=10)
-    print(f"Total news articles: {len(news)}")
-    for article in news[:5]:
-        print(f"{article['timestamp']} - {article['title']} ({article['sentiment']})")
-
-    sample_text = "The economy is showing signs of recovery with increased consumer spending and positive job growth."
-    sentiment_label, sentiment_score = analyze_sentiment(sample_text, mode='finbert')
-    print(f"Sentiment Label: {sentiment_label}, Sentiment Score: {sentiment_score}")
+    # Define some currency pairs for testing
+    currency_pairs = [("^DJI", "USD"), ("GBP", "USD"), ("USD", "JPY")]
+    
+    print("Testing scrape_yahoo_finance_news function:")
+    try:
+        news = scrape_yahoo_finance_news(currency_pairs, max_articles=5)
+        print(f"Total news articles: {len(news)}")
+        for article in news[:3]:  # Show first 3 articles
+            print(f"{article['timestamp']} - {article['title']} ({article.get('sentiment', 'unknown')})")
+    except Exception as e:
+        print(f"Error testing scrape_yahoo_finance_news: {str(e)}")
+    
+    print("\nTesting load_news_from_files function:")
+    try:
+        # Test for an index
+        dji_news = load_news_from_files("dji")
+        print(f"Found {len(dji_news)} news articles for DJI")
+        
+        # Test for a currency pair
+        gbp_usd_news = load_news_from_files("gbp_usd")
+        print(f"Found {len(gbp_usd_news)} news articles for GBP/USD")
+        
+        # Print some sample news if found
+        all_loaded_news = dji_news + gbp_usd_news
+        for i, article in enumerate(all_loaded_news[:3]):
+            print(f"{i+1}. {article['title']} - Currency: {article.get('currency', 'unknown')}")
+            print(f"   - Sentiment: {article.get('sentiment', 'unknown')} ({article.get('score', 0.0)})")
+    except Exception as e:
+        print(f"Error testing load_news_from_files: {str(e)}")
+    
+    print("\nTesting sentiment analysis:")
+    try:
+        sample_text = "The economy is showing signs of recovery with increased consumer spending and positive job growth."
+        sentiment_label, sentiment_score = analyze_sentiment(sample_text, mode='finbert')
+        print(f"Sentiment Label: {sentiment_label}, Sentiment Score: {sentiment_score}")
+    except Exception as e:
+        print(f"Error testing sentiment analysis: {str(e)}")
