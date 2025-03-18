@@ -9,7 +9,10 @@ pandas
 streamlit
 typing
 arrow
-numpy
+# Use a stable version for Arima otherwise get error in Streamlit cloud
+# ValueError: numpy.dtype size changed, may indicate binary incompatibility. 
+# Expected 96 from C header, got 88 from PyObject
+numpy==1.24.3 
 transformers
 torch
 backoff
