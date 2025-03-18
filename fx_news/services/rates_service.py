@@ -20,7 +20,7 @@ def setup_auto_refresh():
     # Only enable auto-refresh if the toggle is on in session state
     if 'auto_refresh' in st.session_state and st.session_state.auto_refresh:
         # Set up the 15-second refresh cycle for rates
-        count = st_autorefresh(interval=30000, key="rates_refresher")
+        count = st_autorefresh(interval=35000, key="rates_refresher")
         
         # Process refreshes
         current_time = datetime.now()
