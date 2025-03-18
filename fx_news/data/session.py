@@ -48,7 +48,7 @@ def initialize_session_state():
         'last_auto_refresh_time': datetime.now(),
         'fx_subscriptions': default_fx_pairs,  # Store FX subscriptions separately
         'crypto_subscriptions': default_crypto_pairs,  # Store crypto subscriptions separately
-        'collapse_all_cards': False,  # Default to collapsed cards
+        'collapse_all_cards': True,  # Default to collapsed cards
     }
     
     # Only set the value if the key doesn't exist in session state
@@ -190,7 +190,7 @@ def switch_market_type(new_market_type):
     st.session_state.available_currencies = get_available_currencies(new_market_type)
     
     # Reset UI-related state
-    st.session_state.collapse_all_cards = False
+    st.session_state.collapse_all_cards = True
     
     # Force complete UI refresh
     if 'ui_refresh_key' not in st.session_state:
