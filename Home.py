@@ -99,6 +99,106 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+
+def add_podcast_player_to_sidebar():
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### 🎙️ TCA Analysis Podcast")
+        
+        # Custom CSS for the play button
+        st.markdown("""
+        <style>
+        .podcast-play-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(45deg, #4682B4, #87CEEB);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+            margin: 10px auto;
+        }
+        .podcast-play-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+        }
+        .podcast-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+            border-radius: 10px;
+            background: #f0f2f6;
+            margin-bottom: 15px;
+        }
+        .podcast-title {
+            font-weight: bold;
+            margin-top: 10px;
+            text-align: center;
+        }
+        .podcast-description {
+            font-size: 0.9em;
+            color: #555;
+            margin-top: 5px;
+            text-align: center;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Podcast details
+        podcast_file = "tca.wav"  # Your WAV file
+        podcast_title = "TCA Analysis Deep Dive"
+        podcast_description = "Latest insights on Transaction Cost Analysis for FX traders"
+        
+        # State management for player visibility
+        if 'show_tca_podcast' not in st.session_state:
+            st.session_state.show_tca_podcast = False
+            
+        # Create the podcast container with the fancy play button
+        st.markdown(f"""
+        <div class="podcast-container">
+            <button class="podcast-play-button" id="play-tca-podcast" onclick="this.style.display='none';">▶</button>
+            <div class="podcast-title">{podcast_title}</div>
+            <div class="podcast-description">{podcast_description}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Check if file exists
+        if os.path.exists(podcast_file):
+            # Create a clean button that matches the fancy play button styling
+            if st.button("Play TCA Podcast", key="play_tca_btn", use_container_width=True):
+                st.session_state.show_tca_podcast = True
+            
+            if st.session_state.show_tca_podcast:
+                # Display a loading message first
+                with st.spinner("Loading podcast..."):
+                    # Make the audio file accessible via Streamlit's static file serving
+                    # This avoids loading the entire file into memory
+                    st.audio(podcast_file, format="audio/wav")
+                    
+                    # Add download button that uses the file directly rather than base64 encoding
+                    with open(podcast_file, "rb") as file:
+                        st.download_button(
+                            label="Download Podcast",
+                            data=file,
+                            file_name="TCA_Analysis_Podcast.wav",
+                            mime="audio/wav"
+                        )
+        else:
+            # File not found error
+            st.error(f"Podcast file '{podcast_file}' not found.")
+            st.info("The file should be in the root directory of your application.")
+
+
+# Add this line to your main code to call the function
+add_podcast_player_to_sidebar()
+
 # Function to read AWS credentials from CSV file
 def get_aws_credentials():
     """
@@ -291,6 +391,97 @@ def generate_chunked_narration_with_music(text, voice_id="Joanna"):
         
         return f"<p>Error generating audio: {str(e)}</p>"
 
+
+def improve_text_for_tts(text):
+    """
+    Improve text for better text-to-speech pronunciation
+    
+    Parameters:
+    text (str): Original text
+    
+    Returns:
+    str: Improved text with better TTS pronunciation
+    """
+    # Replace common abbreviations and symbols
+    replacements = {
+        "YoY": "year on year",
+        "MoM": "month on month",
+        "QoQ": "quarter on quarter",
+        "TTS": "text to speech",
+        "FX": "foreign exchange",
+        "USD": "U S Dollar",
+        "EUR": "Euro",
+        "GBP": "British Pound",
+        "JPY": "Japanese Yen",
+        "CAD": "Canadian Dollar",
+        "AUD": "Australian Dollar",
+        "NZD": "New Zealand Dollar",
+        "CHF": "Swiss Franc",
+        "y/y": "year on year",
+        "m/m": "month on month",
+        "q/q": "quarter on quarter",
+        "%": "percent",
+        "$": "dollars",
+        "€": "euros",
+        "£": "pounds",
+        "¥": "yen",
+        "0.": "point",
+        "BoJ": "Bank of Japan",
+        "BoC": "Bank of Canada",
+
+    }
+    
+    # Apply all replacements
+    for abbr, full_text in replacements.items():
+        text = text.replace(abbr, full_text)
+    
+    return text
+
+def create_brief_narration(report_data, formatted_date):
+    """
+    Create a concise narration script from the report data
+    
+    Parameters:
+    report_data (dict): The transformed report data
+    formatted_date (str): The formatted date string
+    
+    Returns:
+    str: A brief narration script
+    """
+    # Extract title/overview
+    title = report_data.get('title', 'Daily Market Report')
+    
+    # Extract the overview from the title
+    overview = title
+    if title.startswith("Daily Market Report: "):
+        overview = title[len("Daily Market Report: "):]
+    elif title.startswith("Daily Market Outlook: "):
+        overview = title[len("Daily Market Outlook: "):]
+    
+    # Start with a brief introduction
+    narration_text = f"Market Report for {formatted_date}. {overview}. "
+    
+    # Add key trends
+    trends = report_data.get("trends", [])
+    if trends:
+        narration_text += "Key market trends include: "
+        for i, trend in enumerate(trends[:3]):  # Limit to first 3 trends for brevity
+            direction = "increasing" if trend.get("direction") == "up" else "decreasing" if trend.get("direction") == "down" else "stable"
+            narration_text += f"{trend.get('currency', '')} is {direction}, {trend.get('description', '')}. "
+    
+    # Include outlook
+    outlook = report_data.get("outlook", {})
+    if outlook:
+        description = outlook.get('description', '')
+        if description:
+            narration_text += f"Market Outlook: {description}"
+    
+    # Improve text for text-to-speech
+    narration_text = improve_text_for_tts(narration_text)
+    
+    return narration_text
+
+# Update the create_detailed_narration function to use the improved text
 def create_detailed_narration(report_data, formatted_date):
     """
     Create a more detailed narration script from the report data
@@ -309,6 +500,8 @@ def create_detailed_narration(report_data, formatted_date):
     overview = title
     if title.startswith("Daily Market Report: "):
         overview = title[len("Daily Market Report: "):]
+    elif title.startswith("Daily Market Outlook: "):
+        overview = title[len("Daily Market Outlook: "):]
     
     # Start with introduction
     narration_text = f"Welcome to the Market Report for {formatted_date}. {overview} "
@@ -358,45 +551,8 @@ def create_detailed_narration(report_data, formatted_date):
     # Add closing remarks
     narration_text += "That concludes our market report for today. Remember that market conditions can change rapidly. Thank you for listening to the FX Pulsar Hub market update."
     
-    return narration_text
-
-# Add a function for the brief narration
-def create_brief_narration(report_data, formatted_date):
-    """
-    Create a concise narration script from the report data
-    
-    Parameters:
-    report_data (dict): The transformed report data
-    formatted_date (str): The formatted date string
-    
-    Returns:
-    str: A brief narration script
-    """
-    # Extract title/overview
-    title = report_data.get('title', 'Daily Market Report')
-    
-    # Extract the overview from the title
-    overview = title
-    if title.startswith("Daily Market Report: "):
-        overview = title[len("Daily Market Report: "):]
-    
-    # Start with a brief introduction
-    narration_text = f"Market Report for {formatted_date}. {overview}. "
-    
-    # Add key trends
-    trends = report_data.get("trends", [])
-    if trends:
-        narration_text += "Key market trends include: "
-        for i, trend in enumerate(trends[:3]):  # Limit to first 3 trends for brevity
-            direction = "increasing" if trend.get("direction") == "up" else "decreasing" if trend.get("direction") == "down" else "stable"
-            narration_text += f"{trend.get('currency', '')} is {direction}, {trend.get('description', '')}. "
-    
-    # Include outlook
-    outlook = report_data.get("outlook", {})
-    if outlook:
-        description = outlook.get('description', '')
-        if description:
-            narration_text += f"Market Outlook: {description}"
+    # Improve text for text-to-speech
+    narration_text = improve_text_for_tts(narration_text)
     
     return narration_text
 
@@ -735,7 +891,7 @@ def generate_chunked_narration(text, voice_id="Joanna"):
 
 def add_narration_options_to_sidebar():
     with st.sidebar:
-        st.markdown("### Narration Options")
+        st.markdown("### Market Report Narration Options")
         voice_options = {
             "Amy": "Female (British)",
             "Brian": "Male (British)",
@@ -755,13 +911,14 @@ def add_narration_options_to_sidebar():
         
         st.session_state.selected_voice = selected_voice
 
-def transform_json_structure(original_data, report_type="legacy"):
+def transform_json_structure(original_data, report_type="legacy", is_today=True):
     """
     Transform different JSON structures to a unified format for display
     
     Parameters:
     original_data (dict): Original JSON data
     report_type (str): Type of report - "legacy" (old format) or "new" (new format)
+    is_today (bool): Whether this is today's report or yesterday's report
     
     Returns:
     dict: Transformed data in the expected format for the display function
@@ -792,10 +949,13 @@ def transform_json_structure(original_data, report_type="legacy"):
                 transformed["date"] = market_summary["date"].replace("-", "") if "-" in market_summary["date"] else market_summary["date"]
                 logger.debug(f"Extracted date: {transformed['date']}")
             
-            # Title and summary
+            # Title and summary - with different title based on whether it's today or yesterday
             if "overview" in market_summary:
                 overview = market_summary["overview"]
-                transformed["title"] = "Daily Market Report: " + overview
+                if is_today:
+                    transformed["title"] = "Daily Market Outlook: " + overview
+                else:
+                    transformed["title"] = "Daily Market Report: " + overview
                 transformed["summary"] = ""  # Don't duplicate the overview in the summary
                 logger.debug(f"Extracted title only, avoiding duplication")
             
@@ -897,10 +1057,13 @@ def transform_json_structure(original_data, report_type="legacy"):
                 transformed["date"] = market_summary["date"].replace("-", "") if "-" in market_summary["date"] else market_summary["date"]
                 logger.debug(f"Extracted date: {transformed['date']}")
             
-            # Title and summary
+            # Title and summary - with different title based on whether it's today or yesterday
             if "overview" in market_summary:
                 overview = market_summary["overview"]
-                transformed["title"] = "Daily Market Report: " + overview
+                if is_today:
+                    transformed["title"] = "Daily Market Outlook: " + overview
+                else:
+                    transformed["title"] = "Daily Market Report: " + overview
                 transformed["summary"] = "" # overview
                 logger.debug(f"Extracted title and summary from overview")
             
@@ -1003,6 +1166,9 @@ def get_latest_report(report_view="today"):
     # Determine subdirectory based on report view
     subfolder = "tday" if report_view == "today" else "yday"
     
+    # Determine if this is today's report
+    is_today = report_view == "today"
+    
     logger.info(f"Looking for {report_view}'s report in {subfolder} folder")
     
     # Search in both possible base directories
@@ -1059,7 +1225,7 @@ def get_latest_report(report_view="today"):
                             logger.info("Detected legacy report format")
                         
                         # Transform the data structure to match expected format
-                        transformed_data = transform_json_structure(original_data, report_type)
+                        transformed_data = transform_json_structure(original_data, report_type, is_today)
                         if transformed_data:
                             return transformed_data
                         else:

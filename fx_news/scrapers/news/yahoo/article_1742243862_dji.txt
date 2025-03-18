@@ -1,0 +1,242 @@
+# Stock market today: Dow gains 350 points as stocks climb for 2nd day after S&P 500 enters correction
+
+Source: https://finance.yahoo.com/news/live/stock-market-today-dow-gains-350-points-as-stocks-climb-for-2nd-day-after-sp-500-enters-correction-200032691.html
+Timestamp: 1742243862 (2025-03-17T20:37:42)
+
+SUMMARY: US stocks climbed on Monday, with focus on more mixed economic data ahead of this week's Federal Reserve policy meeting. The S&P 500 (^GSPC) gained about 0.6% to rebound for a second day in row, while the Dow Jones Industrial Average (^DJI) gained more than 350 points, or more than 0.8%. The tech-heavy Nasdaq Composite (^IXIC) rose 0.3% as "Magnificent 7" stocks, including Nvidia (NVDA) and Tesla (TSLA), faltered. The gauges continued a climb after a sell-off that saw the S&P 500 enter correctio...
+
+US stocks climbed on Monday, with focus on more mixed economic data ahead of this week's Federal Reserve policy meeting.
+
+The S&P 500 (^GSPC) gained about 0.6% to rebound for a second day in row, while the Dow Jones Industrial Average (^DJI) gained more than 350 points, or more than 0.8%. The tech-heavy Nasdaq Composite (^IXIC) rose 0.3% as "Magnificent 7" stocks, including Nvidia (NVDA) and Tesla (TSLA), faltered.
+
+The gauges continued a climb after a sell-off that saw the S&P 500 enter correction territory and the Dow book its worst weekly performance since March 2023. Markets have been buffeted by economic slowdown fears and uncertainty over Trump's unpredictable tariff policy.
+
+Treasury Secretary Scott Bessent inflamed those worries on Sunday when he told NBC that he's not worried about the recent slump in stocks, saying "corrections are healthy." He added that there are "no guarantees" the US will avoid recession.
+
+On Monday, rate-cut bets this year rose after a fresh print showed retail sales increased less than expected in February, while January's reading was revised lower.
+
+Monthly retail sales were up 0.2%, versus estimates of a 0.6% rise, while the previous month's 0.9% drop was revised to a fall of 1.2%.
+
+Meanwhile, the New York Fed's reading on manufacturing activity in New York state showed a sharp pullback in March, with the headline business conditions index falling to -20 from a reading of 5.7 in February.
+
+Wall Street is also bracing for the Federal Reserve's two-day meeting starting Tuesday, where it is widely expected to stand pat on interest rates. Investors will look for any sign that Trump's policies are changing the central bank’s views of the future of the economy.
+
+Stocks gained for a second day in a row on Monday as investors turn their attention to this week's Fed interest rate meeting.
+
+The Nasdaq Composite (^IXIC) erased earlier losses to gain 0.3% as some tech names slipped. The S&P 500 (^GSPC) rose 0.6% to gain for a second day in a row after it entered correction territory last week. The Dow Jones Industrial Average (^DJI) gained more than 350 points, or about 0.8%, after registering its worst week since 2023.
+
+The Federal Reserve will start its two-day meeting on Tuesday. Investors expect policymakers to announce no change to rates on Wednesday afternoon, but expectation is building for a resumption of cuts this year and possibly more than previously anticipated following weak economic data and a volatile couple of weeks amid tariff uncertainty.
+
+Nearly 11 sectors of the S&P 500 gained on Monday, with Energy (XLE) and Real Estate (XRE) stocks leading the way.
+
+The 'Mag Seven' stocks managed to climb off their lows of the session. EV maker Tesla (TSLA) and Nvidia (NVDA) closed the session in negative territory.
+
+Stocks were near the highs of the session on Monday with less than one hour left of trading.
+
+The Nasdaq Composite (^IXIC) erased losses from earlier to gain 0.9%, while the S&P 500 (^GSPC) was up about 1%. The Dow Jones Industrial Average (^DJI) gained more than 1.2% after registering its worst week since 2023.
+
+All 11 sectors of the S&P 500 were in green territory.
+
+The Federal Reserve will meet on Tuesday. Investors expect policymakers to hold rates steady following its two-day meeting. However expectations are rising that Fed officials will need to resume rate cutting this year in order to stimulate the economy, as recent data may be signaling a slowdown.
+
+Energy (XLE) and Real Estate (XRE) stocks gained on Monday, sending the major averages higher.
+
+All 11 sectors of the S&P 500 rose after weak economic data signaled cracks in the US economy, lifting expectations that the Federal Reserve will need to resume rate cuts this year.
+
+"A modest rebound in February retail sales following a downwardly revised plunge in January indicates increased spending reluctance on the part of the consumers as flagging consumer sentiment, rising job insecurity, and another bout of cold winter weather took a toll on households’ willingness to spend," EY senior economist Lydia Boussour said on Monday.
+
+Headline retail sales rose 0.2% in February, less than the 0.6% increase economists had expected. Retail sales in January were revised lower to a decline of 1.2% from a prior reading that showed a 0.9% decrease in the month.
+
+Investors may be betting that a slower economy would prompt Fed officials to start cutting rates again this year. Policymakers will meet on Tuesday, though the market widely anticipates they will hold interest rates steady at the conclusion of their meeting on Wednesday afternoon.
+
+Tesla stock (TSLA) was a Nasdaq laggard on Monday, falling more than 5% on the heels of eight straight weeks of declines.
+
+Shares dropped on news from China, one of the company’s most important regions, that the electric vehicle manufacturer is offering a free trial of its Full Self-Driving (FSD) autonomous software on the mainland.
+
+Pras Subramanian reports:
+
+Read more here.
+
+The future of stock market investing isn't the stock market.
+
+On Monday, Robinhood (HOOD) announced it was launching prediction markets, allowing users to trade the outcome of events, with this week's Fed meeting and the NCAA tournament serving as the first two markets at launch.
+
+Last month, readers might recall, the company sought to launch bets on the Super Bowl but later withdrew that plan.
+
+A month later, it seems the company has the answer for regulators.
+
+"The prediction markets hub — and corresponding contracts — will initially be available across the US through KalshiEX LLC, a CFTC regulated exchange," the company said in Monday's release.
+
+"We have been in close contact with the CFTC over the past several weeks and look forward to continuing to work with them to promote innovation in the futures, derivatives and crypto markets."
+
+So with the regulatory machinery hammered out and the company finding a better partner for its latest initiative outside of stocks, Robinhood appears to be signaling that the future of stock market investing is actually sports betting.
+
+As Bloomberg's Matt Levine wrote back in February:
+
+There are two basic mental models one can use when investing in the stock market — no one knows anything or everyone knows everything.
+
+Both, taken to their extremes, form a firm backing for doing what most research suggests most people should do with most of their investments: park them in a low-cost index fund and then do something else with their time and talents.
+
+For professional investors, both of these models also offer plenty of reasons to go on trying to beat the market. Surely, not everyone can know everything, and someone must know something. Why not us?
+
+But for both the retail investor and the companies that serve them, a regularly reinforced message that the best way to do something with your money is to do nothing will eventually see these relationships fall off in both directions.
+
+Companies cannot acquire users and count on them to remain customers through years of inaction. And few customers of any business, no matter what they are "supposed" to do with the product, will remain as such if there's no reason to remember they're a customer.
+
+All of which helps to outline the appeal of prediction markets as a middle ground of sorts.
+
+They resolve quickly. They are discrete. And while leverage can be applied to any wager in creative ways, there aren't (at least not yet) options on these derivatives.
+
+In its paper arguing for the value of offering prediction market contracts, Robinhood writes, "The combination of risk mitigation, information aggregation, speculation, and learning potential makes prediction markets a valuable economic and informational tool for businesses and individuals alike."
+
+Which, sure.
+
+And speaking of things everyone knows, the modern US economy is highly financialized, but most participants are unable to hedge their risk. (As a W-2 employee with a mortgage and a 401(k), I'm actually levered long my local housing market, the online media industry, and the US stock market.)
+
+So: does this new product offering change the risk profile for the majority of Robinhood's users, many of whom are likely exposed to the same leverage as this post's author? Probably not.
+
+But what it does signal is that the stock market's role in the average person's efforts to improve their financial standing or de-risk their financial assets is likely to decrease over time.
+
+"Democratizing" things like private equity and venture capital fit in this bucket, of course.
+
+And placing a yes/no bet on all 67 games set to be played in the NCAA Tournament doesn't exactly scream "de-risking."
+
+The stock market is often discussed as a solved problem — much like baseball, with its three true outcomes — but if the known correct action is, as mentioned above, to buy the basket and do nothing, then both the business strategist and human nature biases toward action must be allayed somehow.
+
+At least sports are fun.
+
+Intel (INTC) stock rose 7.5% Monday after Reuters reported that the chipmaker's new CEO, Lip-Bu Tan, is considering "significant changes" to the company's manufacturing and artificial intelligence strategies.
+
+Citing anonymous sources with ties to Tan, Reuters reported that the new chief executive is looking to restructure Intel's approach to AI and revamp its manufacturing operations by attracting new customers.
+
+Tan's appointment as CEO was announced last week by Intel to the thrill of investors. Shares of the chipmaker jumped 15% on the news.
+
+Intel has struggled to regain technological dominance in the AI-dominated market. The stock fell roughly 60% in 2024. With Monday's gain, Intel shares are up nearly 30% year to date.
+
+Another Wall Street strategist is lowering her year-end target on the S&P 500 (^GSPC), citing economic growth concerns.
+
+Following the S&P 500's recent 10% drawdown, RBC Capital Markets head of US equity strategy Lori Calvasina lowered her year-end target to the S&P 500 to 6,200 from 6,600. Calvsina's revised outlook on the S&P 500 comes after both Goldman Sachs and Yardeni Research lowered their targets last week.
+
+"While we don’t believe that a pullback beyond the 10% drawdown that has already been sustained is inevitable, we do believe that the path for stocks between now and December has gotten rockier with stronger headwinds," Calvasina wrote in a note to clients on Sunday night.
+
+A gloomier outlook on US economic growth from the RBC Capital Markets economics team contributed to the more subdued S&P 500 projection. RBC's economic forecasters now project the economy to grow 1.6% this year, down from a prior estimate of 2%. Calvsina noted that the stock market has often fallen in years when GDP is in a "sluggish" range of 1.1%-2%.
+
+"Some economic forecasters around the Street have started to dial down their 2025 GDP forecasts, but are not calling for a recession," Calvasina wrote. "Historically, the dialing down of economic growth on its own presents a significant headwind for the stock market to overcome."
+
+Read more here.
+
+Monday's early market action featured more pain for the "Magnificent Seven" tech stocks.
+
+Nvidia (NVDA), Alphabet (GOOG, GOOGL), Amazon (AMZN), Meta (META), Apple (AAPL), Microsoft (MSFT), and Tesla (TSLA) are all lower on Monday morning. Apple, Amazon, Meta and Nvidia fell more than 1%, while Tesla shares slid over 5%.
+
+Consequently, the major indexes' attempt at a comeback stalled. The Nasdaq Composite (^IXIC) moved down nearly 0.2%, while the S&P 500 (^GSPC) was up less than 0.3% and off its high for the day.
+
+This reflects a point that several Wall Street strategists have made to Yahoo Finance in recent days: The stock market's path out of its slump is still likely contingent on the path of the Magnificent Seven megacaps
+
+"For the market to go higher from here, you need the broadening thesis to happen, but you need your Mag Seven to contribute," Citi US equity strategist Scott Chronert told Yahoo Finance.
+
+BMO Capital Markets chief investment strategist Brian Belski echoed Chronert's sentiment about the group's importance.
+
+"Maybe these tech stocks got ahead of their skis a little bit," Belski told Yahoo Finance. "But at the end of the day, these are monster companies that define the growth trajectory for the United States stock market. They are not going away."
+
+Yahoo Finance's Laura Bratton reports:
+
+Read more here.
+
+Guess? shares (GES) surged as much as 27% on Monday after the company announced it received a proposal to go private.
+
+The clothing company said its board of directors received a non-binding proposal from WHP Global to acquire the outstanding shares of Guess for $13.00 per share in cash.
+
+At 10:55 a.m. ET, shares were trading just above $12 each.
+
+Yahoo Finance's Brian Sozzi reports:
+
+Read more here.
+
+Builders are feeling less confident about the housing market as they navigate economic uncertainty, the threat of tariffs, and high housing costs.
+
+The National Association of Home Builders (NAHB)/Wells Fargo Housing Market Index fell to 39 in March, down 3 points from February and the lowest level in seven months. According to Bloomberg data, economists were expecting a reading of 42. A reading below 50 indicates more builders view conditions as poor rather than good.
+
+“Builders continue to face elevated building material costs that are exacerbated by tariff issues, as well as other supply-side challenges that include labor and lot shortages,” NAHB Chairman Buddy Hughes, a homebuilder and developer from Lexington, N.C., said in a press release.
+
+President Trump last week imposed a 25% tariff on all imported steel and aluminum products, without exemptions or exceptions, a move that could raise housing costs.
+
+“Construction firms are facing added cost pressures from tariffs,” NAHB chief economist Robert Dietz said in the release.
+
+Dietz noted “Data from the HMI March survey reveals that builders estimate a typical cost effect from recent tariff actions at $9,200 per home. Uncertainty on policy is also having a negative impact on home buyers and development decisions.”
+
+US stocks were mixed in early trading on Monday after the release of weak economic data and ahead of the Federal Reserve's policy meeting this week.
+
+The S&P 500 (^GSPC) traded near the flat line, while the Dow Jones Industrial Average (^DJI) was little changed. The tech-heavy Nasdaq Composite (^IXIC) fell slightly.
+
+Weak economic data appeared to send stocks higher over expectations of Fed rate cuts sooner, rather than later.
+
+Retail sales rose 0.2% in February, less than the 0.6% expected, while January's 0.9% drop was revised down to 1.2%.
+
+The New York Fed's reading on manufacturing activity in New York state showed a sharp pullback this month, with the headline business conditions index falling to -20 from 5.7 in February.
+
+All eyes will be on the Federal Reserve's meeting this week, though investors expect policymakers to announce they will hold rates steady on Wednesday afternoon.
+
+National readings on consumer and business confidence have shown signs of weakness as markets sink and Trump's trade war takes shape, and the regional data isn't much better.
+
+On Monday, the New York Fed's reading on manufacturing activity in New York state showed a sharp pullback this month, with the reading's headline business conditions index falling to -20 from 5.7 in February.
+
+The index is calculated by subtracting the percentage of respondents reporting lower confidence about conditions from those reporting higher confidence in the business outlook.
+
+This reading marks the lowest for the survey since January 2024.
+
+"Manufacturing activity dropped significantly in New York State in March," said Richard Deitz, economic research adviser at the NY Fed. "Input price increases climbed for a third straight month to hit their fastest pace in more than two years. In addition, supply availability is expected to contract and firms continued to grow less optimistic about the future business outlook."
+
+The survey was conducted from March 3-11.
+
+Yahoo Finance's Josh Schafer reports:
+
+Read more here.
+
+Nvidia (NVDA) shares rose over 1% in premarket, with the kick-off of the chipmaking giant's annual software developer conference just hours away.
+
+The stakes are high for Nvidia, whose market cap is nearing $3 trillion thanks to its dominance in AI — which is under threat after DeepSeek upended AI spending hopes with its cheaper chatbot.
+
+The Wall Street Journal reports:
+
+Read more here.
+
+Yahoo Finance's Jennifer Schonberger reports:
+
+Read more here.
+
+Economic data: Retail sales (February); NAHB Housing Market Index (March)
+
+Earnings: No notable earnings releases expected.
+
+Here are some of the biggest stories you may have missed over the weekend and early this morning:
+
+Trump's tariffs loom over a still-cautious Fed as markets gyrate
+
+Ireland's profits from weight-loss drugs draw Trump's attention
+
+A Fed meeting and retail sales data greet a flailing stock market: What to know this week
+
+Trump: Both reciprocal and sectoral tariffs coming April 2
+
+'A sentiment shift': What Wall Street is saying after the S&P 500's 10% tumble
+
+US meat exports at risk as China lets registrations lapse
+
+The 4% rule creator reveals the new safe retirement withdrawal rate
+
+Big tech stocks at cheapest in months fail to entice wary buyers
+
+Goldman cuts oil forecasts amid slow US growth, OPEC+ policy
+
+China: Global CEOs to meet Xi in Beijing next week
+
+Oil prices have risen for a second consecutive day after China revealed plans to increase oil consumption.
+
+Bloomberg reports:
+
+Read more here.
+
+---
+SENTIMENT: 
+SCORE: 0.0

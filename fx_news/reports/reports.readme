@@ -1,0 +1,15 @@
+These reports are generated with this prompt
+
+The report for yesterday : 
+Step 1
+can you give me a summary of what happened on the market yesterday 17th March and the tendancies for today the 18th March, in JSON format
+Step 2 
+Can you use this format (but with data from the 17th and 18th)
+
+*** CREATE NEW CHAT FROM SCRATCH ****
+
+The report for today generated at midnight 
+Step 1 
+can you give me a summary of what is happening on the markets today and the tendancies and drivers to watch out today for the FX market, in JSON format
+Step 2
+Can you use this format (but with data for the 18th)
