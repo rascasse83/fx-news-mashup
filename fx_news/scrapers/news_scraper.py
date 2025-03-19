@@ -8,9 +8,10 @@ from textblob import TextBlob
 import logging
 import os
 import glob
-from fx_news.scrapers.article_downloader import download_single_article, get_latest_timestamp, update_timestamp_cache, download_article_content
+from fx_news.scrapers.article_downloader import download_single_article, get_latest_timestamp, update_timestamp_cache, normalize_yahoo_url
 from fx_news.scrapers.robots_txt_parser import RobotsTxtParser
 from fx_news.scrapers.analyze_sentiment import analyze_sentiment_with_mistral
+from fx_news.config.settings import indices
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urljoin
 import backoff
@@ -100,7 +101,8 @@ def get_random_headers():
     }
 
 def scrape_indices_news(indices_list: Optional[List[str]] = None, limit: int = 10, 
-                        debug_log: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+                      debug_log: Optional[List[str]] = None,
+                      news_folder: str = "fx_news/scrapers/news/yahoo") -> List[Dict[str, Any]]:
     """
     Scrape news related to stock indices from Yahoo Finance
     
@@ -108,6 +110,7 @@ def scrape_indices_news(indices_list: Optional[List[str]] = None, limit: int = 1
         indices_list: List of index symbols to search for
         limit: Maximum number of news items to return per index
         debug_log: Optional list to append debug information
+        news_folder: Folder to save downloaded articles
         
     Returns:
         List of news items with title, summary, source, timestamp, etc.
@@ -131,97 +134,7 @@ def scrape_indices_news(indices_list: Optional[List[str]] = None, limit: int = 1
         '^N225': 'Nikkei 225',
     }
     
-    # First try to get news from the main market page which has more relevant market overview news
-    market_urls = [
-        "https://finance.yahoo.com/topic/stock-market-news/",
-        "https://finance.yahoo.com/topic/market-news/"
-    ]
-    
-    for url in market_urls:
-        try:
-            debug_log.append(f"Fetching general market news from {url}")
-            logger.info(f"Fetching general market news from {url}")
-            headers = get_random_headers()
-            response = requests.get(url, headers=headers, timeout=10)
-            
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, 'html.parser')
-                
-                # Find all news article items
-                news_items = soup.find_all('li', class_='js-stream-content')
-                
-                for item in news_items[:limit]:
-                    try:
-                        # Extract title, link, and source
-                        title_elem = item.find('h3')
-                        if not title_elem:
-                            continue
-                            
-                        title = title_elem.text.strip()
-                        
-                        # Extract link
-                        link_elem = item.find('a')
-                        link = "https://finance.yahoo.com" + link_elem['href'] if link_elem and 'href' in link_elem.attrs else ""
-                        
-                        # Extract source and time
-                        source_elem = item.find('div', class_='C(#959595)')
-                        source = ""
-                        time_str = ""
-                        
-                        if source_elem:
-                            source_text = source_elem.text.strip()
-                            # Parse source and time from text like "Yahoo Finance·2 hours ago"
-                            if '·' in source_text:
-                                source, time_str = source_text.split('·', 1)
-                                source = source.strip()
-                                time_str = time_str.strip()
-                        
-                        # Extract summary if available
-                        summary_elem = item.find('p')
-                        summary = summary_elem.text.strip() if summary_elem else ""
-                        
-                        # Create timestamp
-                        timestamp = datetime.now()
-                        if time_str:
-                            if 'minute' in time_str:
-                                minutes = int(re.search(r'(\d+)', time_str).group(1))
-                                timestamp = datetime.now() - timedelta(minutes=minutes)
-                            elif 'hour' in time_str:
-                                hours = int(re.search(r'(\d+)', time_str).group(1))
-                                timestamp = datetime.now() - timedelta(hours=hours)
-                            elif 'day' in time_str:
-                                days = int(re.search(r'(\d+)', time_str).group(1))
-                                timestamp = datetime.now() - timedelta(days=days)
-                        
-                        # Add market tag to general market news
-                        news_item = {
-                            "title": title,
-                            "summary": summary,
-                            "url": link,
-                            "source": source if source else "Yahoo Finance",
-                            "timestamp": timestamp,
-                            "unix_timestamp": int(timestamp.timestamp()),
-                            "currency": "Market", # Use "Market" as currency for general market news
-                            "currency_pairs": {"Market"},
-                            "sentiment": "neutral",  # Default sentiment
-                            "score": 0.0,  # Default score
-                        }
-                        
-                        # Save article to disk for future analysis
-                        save_news_article_to_disk(news_item, 'market')
-                        
-                        all_news.append(news_item)
-                    except Exception as e:
-                        debug_log.append(f"Error parsing market news item: {str(e)}")
-                        logger.error(f"Error parsing market news item: {str(e)}")
-            
-            debug_log.append(f"Fetched {len(all_news)} general market news items")
-            logger.info(f"Fetched {len(all_news)} general market news items")
-        except Exception as e:
-            debug_log.append(f"Error fetching market news from {url}: {str(e)}")
-            logger.error(f"Error fetching market news from {url}: {str(e)}")
-    
-    # Then get index-specific news
+    # Get index-specific news
     for index in indices_list:
         try:
             index_name = indices_names.get(index, index)
@@ -231,9 +144,9 @@ def scrape_indices_news(indices_list: Optional[List[str]] = None, limit: int = 1
             # Yahoo Finance URL for specific index
             if index.startswith('^'):
                 # Use the correct URL format for indices with /news/ endpoint
-                url = f"https://finance.yahoo.com/quote/{index.replace('^', '%5E')}/news/"
+                url = f"https://finance.yahoo.com/quote/{index.replace('^', '%5E')}/news?{random.random()}"
             else:
-                url = f"https://finance.yahoo.com/quote/{index}/news/"
+                url = f"https://finance.yahoo.com/quote/{index}/news?{random.random()}"
             
             headers = get_random_headers()
             response = requests.get(url, headers=headers, timeout=10)
@@ -241,44 +154,28 @@ def scrape_indices_news(indices_list: Optional[List[str]] = None, limit: int = 1
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
                 
-                # Find the news section
-                news_items = []
-
-                # Strategy 1: Look for items in the standard news stream container
-                news_section = soup.find('div', id='quoteNewsStream-0-Stream')
-                if news_section:
-                    news_items = news_section.find_all('li', class_='js-stream-content')
-
-                # Strategy 2: If no items found, try the general news list
+                # Use the same news container finding logic as in the other function
+                news_container = soup.select_one('div[data-testid="news-tabs-container"]')
+                if not news_container:
+                    logger.warning(f"News container not found for {index_name}")
+                    debug_log.append(f"News container not found for {index_name}")
+                    # Try finding the general news stream
+                    news_container = soup.select_one('div.news-stream')
+                    if not news_container:
+                        logger.warning(f"Alternate news container not found for {index_name}")
+                        debug_log.append(f"Alternate news container not found for {index_name}")
+                        continue
+                
+                # Find all news items in the stream
+                news_items = soup.select('li.stream-item.story-item')
+                
                 if not news_items:
-                    news_items = soup.find_all('li', class_='js-stream-content')
-
-                # Strategy 3: Try looking for newer Yahoo Finance news item structure
-                if not news_items:
-                    news_items = soup.select('div[data-test="finance-list-item"]')
-
-                # Strategy 4: Try finding items in other common containers
-                if not news_items:
-                    for container_selector in ['ul.My(0)', 'div.headlines-list', 'div.news-stream']:
-                        container = soup.select_one(container_selector)
-                        if container:
-                            news_items.extend(container.find_all('li'))
-
-                # Strategy 5: Look for article elements directly
-                if not news_items:
-                    news_items = soup.find_all('article')
-
-                # Check if we found any news items
-                if not news_items:
-                    debug_log.append(f"Could not find news items for {index_name}")
-                    logger.warning(f"Could not find news items for {index_name}")
+                    logger.warning(f"No news found for {index_name}")
+                    debug_log.append(f"No news found for {index_name}")
                     continue
-
+                
                 logger.info(f"Found {len(news_items)} news items for {index_name}")
                 debug_log.append(f"Found {len(news_items)} news items for {index_name}")
-                
-                # Find all news items
-                news_items = news_section.find_all('li', class_='js-stream-content')
                 
                 for item in news_items[:limit]:
                     try:
@@ -289,9 +186,19 @@ def scrape_indices_news(indices_list: Optional[List[str]] = None, limit: int = 1
                             
                         title = title_elem.text.strip()
                         
-                        # Extract link
+                        # Extract link - FIXED URL CONSTRUCTION
                         link_elem = item.find('a')
-                        link = "https://finance.yahoo.com" + link_elem['href'] if link_elem and 'href' in link_elem.attrs else ""
+                        link = ""
+                        if link_elem and 'href' in link_elem.attrs:
+                            # Use the normalize_yahoo_url helper to ensure proper URL format
+                            raw_link = link_elem['href']
+                            link = normalize_yahoo_url(raw_link)
+                        
+                        # Skip if we've already processed this URL in this session
+                        if is_url_processed(link):
+                            logger.info(f"Skipping already processed URL in this session: {link}")
+                            debug_log.append(f"Skipping duplicate within session: {link}")
+                            continue
                         
                         # Extract source and time
                         source_elem = item.find('div', class_='C(#959595)')
@@ -339,8 +246,11 @@ def scrape_indices_news(indices_list: Optional[List[str]] = None, limit: int = 1
                             "score": 0.0,  # Default score
                         }
                         
-                        # Save article to disk for future analysis
-                        save_news_article_to_disk(news_item, index.replace('^', ''))
+                        # Save article to disk for future analysis - Use the fixed URL
+                        if news_item.get('url'):
+                            # Mark this URL as being processed before download to prevent duplicates
+                            mark_url_processed(news_item['url'])
+                            news_item['file_path'] = download_single_article(index.replace('^', ''), news_item['url'], folder=news_folder)
                         
                         all_news.append(news_item)
                     except Exception as e:
@@ -1013,20 +923,43 @@ def format_currency_pair_for_yahoo(base, quote):
     else:
         return f"{base}{quote}%3DX"
 
-def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo", max_days_old: int = 7) -> List[Dict[str, Any]]:
+def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo", max_days_old: int = 30, ignore_processed: bool = True) -> List[Dict[str, Any]]:
     """
-    Load previously saved news articles from filesystem
+    Load previously saved news articles from filesystem with options to bypass filters
     
     Args:
         symbol: Currency pair symbol (e.g., "BTC_USD") or index (e.g., "dji")
         folder: Folder where articles are stored
-        max_days_old: Maximum age of articles to load in days
+        max_days_old: Maximum age of articles to load in days (increased to 30 by default)
+        ignore_processed: Whether to ignore the processed timestamps check
     
     Returns:
         List of news items loaded from files
     """
     import glob
+    import logging
+    import os
+    import re
+    from datetime import datetime, timedelta
+    import time
     
+    logger = logging.getLogger("load_news_from_files")
+    logger.setLevel(logging.INFO)
+    
+    # IMPORTANT: Enable this for more verbose logging
+    debug_enabled = True  # Set to False in production
+    if debug_enabled:
+        logger.setLevel(logging.DEBUG)
+
+    if max_days_old is None:
+        max_days_old = st.session_state.get('news_max_days_old', 30)    
+
+    # Use the session state value if not provided 
+    if max_days_old is None and 'news_max_days_old' in st.session_state:
+        max_days_old = st.session_state.news_max_days_old
+    elif max_days_old is None:
+        max_days_old = 30  # Increased default
+        
     symbol = symbol.lower()
     loaded_news = []
     
@@ -1034,11 +967,14 @@ def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo
     pattern = os.path.join(folder, f"*_{symbol}.txt")
     files = glob.glob(pattern)
     
+    logger.info(f"Loading news for {symbol}, found {len(files)} files matching {pattern}")
+    
     # For indices, use a more targeted pattern
     if symbol.startswith('^') or symbol.startswith('dji') or symbol.startswith('gspc'):
         pattern = os.path.join(folder, f"*_{symbol.replace('^', '')}.txt")
         more_files = glob.glob(pattern)
         files.extend(more_files)
+        logger.info(f"Found {len(more_files)} more files for index pattern {pattern}")
         
     # If we're looking for a currency pair like EUR_USD, also look for permutations
     if '_' in symbol:
@@ -1046,9 +982,11 @@ def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo
         # Check if there are any files that match either currency individually
         base_pattern = os.path.join(folder, f"*_{base}.txt")
         base_files = glob.glob(base_pattern)
+        logger.info(f"Found {len(base_files)} base currency files matching {base_pattern}")
         
         quote_pattern = os.path.join(folder, f"*_{quote}.txt")
         quote_files = glob.glob(quote_pattern)
+        logger.info(f"Found {len(quote_files)} quote currency files matching {quote_pattern}")
         
         # Only use these files if specifically looking for this pair
         # Don't do this for general market news
@@ -1065,7 +1003,20 @@ def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo
     # Calculate cutoff date
     cutoff_timestamp = int((datetime.now() - timedelta(days=max_days_old)).timestamp())
     
-    logger.info(f"Looking for cached news for {symbol}, found {len(files)} files")
+    logger.info(f"Looking for cached news for {symbol}, found {len(files)} files, cutoff timestamp: {cutoff_timestamp}")
+    
+    # If no files found using normal patterns, try a more aggressive search
+    if not files:
+        logger.info(f"No files found for {symbol}, trying broader search...")
+        
+        # Look for any article files
+        all_pattern = os.path.join(folder, "article_*.txt")
+        all_files = glob.glob(all_pattern)
+        logger.info(f"Found {len(all_files)} article files in total")
+        
+        # Just take the 20 most recent ones
+        all_files.sort(reverse=True)
+        files = all_files[:20]
     
     for file_path in files:
         try:
@@ -1075,15 +1026,21 @@ def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo
             
             if not timestamp_match:
                 logger.debug(f"No timestamp found in filename: {filename}")
-                continue
-                
-            file_timestamp = int(timestamp_match.group(1))
+                # Still try to process the file even without timestamp
+                file_timestamp = int(time.time())  # Use current time as fallback
+            else:
+                file_timestamp = int(timestamp_match.group(1))
             
-            # Skip if too old
+            # Skip if too old (but log it)
             if file_timestamp < cutoff_timestamp:
-                logger.debug(f"Skipping old article: {filename} ({datetime.fromtimestamp(file_timestamp).isoformat()})")
+                logger.debug(f"Skipping old article: {filename} ({datetime.fromtimestamp(file_timestamp).isoformat()}), age: {(datetime.now() - datetime.fromtimestamp(file_timestamp)).days} days")
                 continue
                 
+            # Check if this timestamp has been processed (unless ignore_processed is True)
+            if not ignore_processed and 'is_timestamp_processed' in globals() and is_timestamp_processed(symbol, file_timestamp):
+                logger.debug(f"Skipping already processed timestamp: {file_timestamp} for {symbol}")
+                continue
+            
             # Read file content
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
@@ -1139,6 +1096,12 @@ def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo
                     if part and len(part.strip()) > 10:
                         summary = part.strip()
                         break
+            
+            # Extract article ID if present
+            article_id = ""
+            article_id_match = re.search(r'^Article ID: (.+)$', content, re.MULTILINE)
+            if article_id_match:
+                article_id = article_id_match.group(1).strip()
             
             # IMPORTANT: Extract the currency pair directly from the filename
             # This is the key change to ensure correct currency pair matching
@@ -1256,7 +1219,8 @@ def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo
                 "related_tickers": [],
                 "file_path": file_path,  # Store the file path
                 "sentiment": sentiment_label,
-                "score": sentiment_score
+                "score": sentiment_score,
+                "article_id": article_id  # Include article ID if available
             }
             
             loaded_news.append(news_item)
@@ -1516,11 +1480,11 @@ def scrape_yahoo_finance_news(
     # Create a robots.txt parser if we're respecting robots.txt
     robot_parser = None
     if respect_robots_txt:
-        from fx_news.scrapers.robots_txt_parser import RobotsTxtParser
         robot_parser = RobotsTxtParser(user_agent="PythonFinanceScraper/1.0")
         
         # Check if we're allowed to scrape Yahoo Finance
         yahoo_base_url = "https://finance.yahoo.com"
+        logger.info(f"Attempting to access URL: {yahoo_base_url}")
         if not robot_parser.is_path_allowed(yahoo_base_url):
             logger.error("Scraping Yahoo Finance is disallowed by robots.txt")
             if debug_log is not None:
@@ -1838,40 +1802,95 @@ def create_mock_news(currencies=None):
 
 # Example usage
 if __name__ == "__main__":
-    # Define some currency pairs for testing
-    currency_pairs = [("^DJI", "USD"), ("GBP", "USD"), ("USD", "JPY")]
+    # Set up more detailed logging for troubleshooting
+    logging.basicConfig(level=logging.DEBUG)
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
     
-    print("Testing scrape_yahoo_finance_news function:")
+    # Create a standalone debug log that doesn't rely on Streamlit
+    standalone_debug_log = []
+    
+    # Define some currency pairs for testing
+    currency_pairs = [("EUR", "USD"), ("USD", "JPY")]
+    
+    print("First testing direct connection to Yahoo Finance:")
     try:
-        news = scrape_yahoo_finance_news(currency_pairs, max_articles=5)
+        test_url = "https://finance.yahoo.com/quote/GBPUSD%3DX/news?p=GBPUSD%3DX"
+        headers = get_random_headers()
+        print(f"Requesting URL: {test_url}")
+        print(f"With headers: {headers}")
+        
+        response = requests.get(test_url, headers=headers, timeout=15)
+        print(f"Response status: {response.status_code}")
+        
+        if response.status_code == 200:
+            print("Connection successful!")
+            content_sample = response.text[:500]  # First 500 chars
+            print(f"Response sample: {content_sample}")
+            
+            # Check if we can find the news container
+            soup = BeautifulSoup(response.text, 'html.parser')
+            news_container = soup.select_one('div[data-testid="news-tabs-container"]')
+            if news_container:
+                print("Found news container!")
+                news_items = soup.select('li.stream-item.story-item')
+                print(f"Found {len(news_items)} news items")
+                
+                # Show a sample news item
+                if news_items:
+                    title_elem = news_items[0].find('h3')
+                    title = title_elem.text.strip() if title_elem else "No title found"
+                    print(f"First news item title: {title}")
+            else:
+                print("Could not find news container, checking alternative selectors...")
+                alt_container = soup.select_one('div.news-stream')
+                if alt_container:
+                    print("Found alternative news container")
+                else:
+                    print("No news containers found - HTML structure may have changed")
+                    
+                    # Save HTML for detailed inspection
+                    with open("yahoo_debug.html", "w", encoding="utf-8") as f:
+                        f.write(response.text)
+                    print("Saved HTML to yahoo_debug.html for inspection")
+        else:
+            print(f"Failed to connect to Yahoo Finance: {response.status_code}")
+    except Exception as e:
+        print(f"Error connecting to Yahoo Finance: {str(e)}")
+    
+    print("\nTesting scrape_yahoo_finance_news function:")
+    try:
+        # Turn off robots.txt checking for testing
+        news = scrape_yahoo_finance_news(
+            currency_pairs, 
+            max_articles=5,
+            respect_robots_txt=False,
+            force_refresh=True,
+            debug_log=standalone_debug_log  # Use local list instead of st.session_state
+        )
         print(f"Total news articles: {len(news)}")
+        
+        # Print debug log
+        print("\nDebug log:")
+        for log_entry in standalone_debug_log:
+            print(f"- {log_entry}")
+        
         for article in news[:3]:  # Show first 3 articles
             print(f"{article['timestamp']} - {article['title']} ({article.get('sentiment', 'unknown')})")
     except Exception as e:
         print(f"Error testing scrape_yahoo_finance_news: {str(e)}")
-    
+        import traceback
+        traceback.print_exc()  # Print full stack trace
+        
     print("\nTesting load_news_from_files function:")
     try:
-        # Test for an index
-        dji_news = load_news_from_files("dji")
-        print(f"Found {len(dji_news)} news articles for DJI")
-        
         # Test for a currency pair
-        gbp_usd_news = load_news_from_files("gbp_usd")
+        gbp_usd_news = load_news_from_files("gbp_usd", max_days_old=30, ignore_processed=True)
         print(f"Found {len(gbp_usd_news)} news articles for GBP/USD")
         
         # Print some sample news if found
-        all_loaded_news = dji_news + gbp_usd_news
-        for i, article in enumerate(all_loaded_news[:3]):
+        for i, article in enumerate(gbp_usd_news[:3]):
             print(f"{i+1}. {article['title']} - Currency: {article.get('currency', 'unknown')}")
             print(f"   - Sentiment: {article.get('sentiment', 'unknown')} ({article.get('score', 0.0)})")
     except Exception as e:
         print(f"Error testing load_news_from_files: {str(e)}")
-    
-    print("\nTesting sentiment analysis:")
-    try:
-        sample_text = "The economy is showing signs of recovery with increased consumer spending and positive job growth."
-        sentiment_label, sentiment_score = analyze_sentiment(sample_text, mode='finbert')
-        print(f"Sentiment Label: {sentiment_label}, Sentiment Score: {sentiment_score}")
-    except Exception as e:
-        print(f"Error testing sentiment analysis: {str(e)}")

@@ -1,6 +1,9 @@
 import streamlit as st
 import logging
 from datetime import datetime
+import gc
+import sys
+import os
 
 # Import from our modules
 from fx_news.config.settings import configure_page, setup_logging
@@ -18,6 +21,79 @@ from fx_news.ui.components.maps import display_indices_world_map, display_indice
 from fx_news.ui.components.news import display_news_sidebar
 from fx_news.ui.layout import create_layout
 from fx_news.ui.components.sidebar import create_sidebar
+
+# Start memory tracking
+# tracemalloc.start()
+
+def get_size(obj, seen=None):
+    """Recursively calculate size of objects in memory"""
+    size = sys.getsizeof(obj)
+    if seen is None:
+        seen = set()
+    obj_id = id(obj)
+    if obj_id in seen:
+        return 0
+    
+    # Mark as seen to avoid cycles
+    seen.add(obj_id)
+    
+    # Add size of contained objects for containers
+    if isinstance(obj, dict):
+        size += sum(get_size(k, seen) + get_size(v, seen) for k, v in obj.items())
+    elif hasattr(obj, '__dict__'):
+        size += get_size(obj.__dict__, seen)
+    elif hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, bytearray)):
+        try:
+            size += sum(get_size(i, seen) for i in obj)
+        except:
+            pass
+            
+    return size
+
+def display_memory_usage():
+    """Display memory usage with recursive calculation"""
+    # Force a garbage collection to get more accurate readings
+    gc.collect()
+    
+    # Get sizes of news objects in memory
+    news_size = 0
+    
+    # Define news-related keys to measure
+    news_keys = ['cached_news', 'fx_news', 'crypto_news', 'indices_news']
+    
+    # Get size of each news container with contents
+    sizes = {}
+    for key in news_keys:
+        if key in st.session_state:
+            size = get_size(st.session_state[key]) / (1024 * 1024)  # Convert to MB
+            sizes[key] = size
+            news_size += size
+    
+    # Display in the UI
+    with st.sidebar.expander("Memory Usage"):
+        st.write(f"Total news data: {news_size:.2f} MB")
+        
+        # Show breakdown by category
+        for key, size in sizes.items():
+            st.write(f"- {key}: {size:.2f} MB")
+        
+        # Add buttons to clear specific caches
+        if st.button("Clear All News Caches"):
+            for key in news_keys:
+                if key in st.session_state:
+                    st.session_state[key] = []
+            gc.collect()
+            st.success("All news caches cleared!")
+        
+        # Add settings for limiting news age
+        st.write("### News Age Limit")
+        days_old = st.slider("Max days to keep news", 
+                             min_value=1, max_value=30, 
+                             value=st.session_state.get('news_max_days_old', 7))
+        
+        if days_old != st.session_state.get('news_max_days_old', 7):
+            st.session_state.news_max_days_old = days_old
+            st.success(f"News age limit set to {days_old} days")
 
 # Set up logging
 logger = logging.getLogger("Market Monitor page")
@@ -45,6 +121,9 @@ def main():
     
     # Add sidebar
     create_sidebar()
+
+   # Display memory usage (add this line)
+    display_memory_usage()   
     
     # Load the economic calendar on app start if needed
     if 'economic_events' not in st.session_state or st.session_state.economic_events is None:
@@ -56,6 +135,7 @@ def main():
     if st.session_state.last_refresh is None: 
         with st.spinner("Updating currency rates..."):
             update_rates()
+     
 
 # # Create sidebar with all controls and navigation
 # def create_sidebar():

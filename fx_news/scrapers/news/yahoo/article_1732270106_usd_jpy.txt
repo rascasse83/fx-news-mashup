@@ -1,0 +1,53 @@
+# Sterling Faces Challenges After Mostly Weaker Data
+
+Article ID: sterling-faces-challenges-mostly-weaker-100826174
+Source: https://finance.yahoo.com/news/sterling-faces-challenges-mostly-weaker-100826174.html
+Timestamp: 1732270106 (2024-11-22T10:08:26)
+
+SUMMARY: In addition to generally disappointing economic indicators recently, the pound seems to have been affected negatively by recent escalation in the Russo-Ukrainian war. In the aftermath of 15 November’s GDP data, cable reached a low of nearly five months around $1.26. This article summarises recent news and data affecting the pound then looks briefly at the charts of GBPUSD and GBPJPY. The British economy had a mild recession in the second half of 2023 which ended in the first quarter of this year...
+
+In addition to generally disappointing economic indicators recently, the pound seems to have been affected negatively by recent escalation in the Russo-Ukrainian war. In the aftermath of 15 November’s GDP data, cable reached a low of nearly five months around $1.26. This article summarises recent news and data affecting the pound then looks briefly at the charts of GBPUSD and GBPJPY.
+
+The British economy had a mild recession in the second half of 2023 which ended in the first quarter of this year. Now growth in the third quarter seems to have declined more than expected:
+
+The consensus for the preliminary figure for GDP in the third quarter was 0.2%. This isn’t a big miss but in the overall context of lukewarm business and consumer sentiment and relatively limited discretionary spending after years of high inflation it seems that the probability of a recession in 2025 is higher for the UK than for other broadly equivalent countries such as France. Inflation also ticked up in October:
+
+With the rise in the cap on energy prices last month, some increase in inflation seemed almost guaranteed, but 2.3% was 0.1% higher than the consensus. Annual core inflation also increased last month to 3.3%.
+
+Overall, the picture for the British economy doesn’t seem to be extremely negative considering the circumstances, but higher inflation combined with generally strong growth in average earnings will probably make the Bank of England (‘the BoE’) reevaluate the rationale behind the current cycle of loosening policy. Expectations for a single cut on 19 December from 4.75% to 4.5% have declined sharply in recent weeks, with the probability now less than 20%.
+
+Compared to the Federal Reserve, there’s more pressure on the BoE to cut rates because growth in the UK is demonstrably weaker than that in the USA. All major central banks are acutely aware of the risks of being too dovish too soon. However, with the current government of the UK sitting on a comfortable majority, there’s likely to be less political pressure on the BoE compared to some other major central banks. Now traders are looking ahead to retail sales and PMIs on Friday 22 November from the UK.
+
+The pound has made strong losses against the US dollar in the third quarter so far, having been overheated in September. Donald Trump’s election has generated some negativity due to the likely introduction of tariffs and general deterioration of relations between the UK and USA. However, with the BoE now much less likely to cut rates next month and with only two cuts expected next year, it’s questionable whether there’s a strong fundamental reason for further strong losses by cable.
+
+The price is still in the area of the 50% monthly Fibonacci retracement which seems to be quite a strong support. An attempt to move below $1.26 was rejected with some strength on 15 November but $1.27 seems to be a significant local resistance. For a major forex pair, cable’s movements have been quite dramatic in the last few months. There’s still a strong oversold signal from the slow stochastic after this oscillator’s crossover on 18 November.
+
+$1.23 seems to be the next critical support on the weekly chart but it’d be unlikely to see the price move that far before the end of the year. If the next interaction with $1.27 leads to a breakout above, one might expect a pause before the next possible movement lower, but a reversal of the downtrend also looks possible. In the short term, selling looks more risky than buying unless there are significant surprises from upcoming data.
+
+Compared to cable, the pound’s performance against the yen in the third quarter so far has been much better. The Bank of Japan’s governor Kazuo Ueda reiterated recently that any upcoming further rate hikes would be gradual and according to economic conditions. ¥205, corresponding to about ¥160 for dollar-yen, might be the area of further governmental intervention, but that’s not likely to be in view for GBPJPY for a while yet.
+
+¥195 was an important resistance and technical reference in late September and for much of last month and seems likely to continue as a key area. This coincides with the value area between the 50 SMA from Bands and the 100 SMA. Now that volume has dropped off somewhat compared to earlier in November and ATR isn’t rising strongly, it’d be possible to see a pause for a few days as participants digest upcoming data. It’s not clear yet how strong the 50 SMA is as a potential dynamic support.
+
+The current situation favours the carry trade quite strongly since the differential is 4.5%, which seems quite unlikely to change drastically within the next several months at least. The next significant move up if it occurs probably depends on the return of higher volume, which could be in the middle of December around the British job report and the BoE’s meeting.
+
+This article was submitted by Michael Stark, an analyst at Exness.
+
+The opinions in this article are personal to the writer. They do not reflect those of Exness or FX Empire.ExnessExnes
+
+This article was originally posted on FX Empire
+
+ExlService Holdings Grows Sales, Expands AI Investments
+
+Sterling Faces Challenges After Mostly Weaker Data
+
+Near-Record Earnings, Revenue Growth Drive SEI Higher
+
+US: Clear-cut Trump Victory Raises Medium-term Economic Risks Despite Reduction of Near-term Political Uncertainty
+
+Bitcoin, Gold, S&P 500: Market Participants Hold Breath After US Elections
+
+Biggest Trump Election Winners: Is the Rally Sustainable?
+
+---
+SENTIMENT: 
+SCORE: 0.0

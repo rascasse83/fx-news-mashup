@@ -10,7 +10,16 @@ logger = logging.getLogger("session_state")
 
 def initialize_session_state():
     """Initialize all session state variables"""
-    
+
+
+    # Add memory saving mode toggle
+    if 'memory_saving_mode' not in st.session_state:
+        st.session_state.memory_saving_mode = False
+        
+    # Add news age configuration    
+    if 'news_max_days_old' not in st.session_state:
+        st.session_state.news_max_days_old = 5  # Default to 5 days
+
     # Initialize market type if not already set
     if 'market_type' not in st.session_state:
         st.session_state.market_type = 'FX'  # Default to FX market
@@ -40,7 +49,7 @@ def initialize_session_state():
         'debug_log': True,
         'show_debug': False,
         'add_variations': False,
-        'auto_refresh': True,
+        'auto_refresh': False,
         'fx_news': [],
         'crypto_news': [],
         'last_fx_news_fetch': None,

@@ -1,0 +1,35 @@
+# Trump's crypto reserve assets are essentially 'built in the US'
+
+Article ID: 213910324
+Source: https://finance.yahoo.com/video/trumps-crypto-assets-essentially-built-213910324.html
+Timestamp: 1741037950 (2025-03-03T21:39:10)
+
+SUMMARY: President Donald Trump has taken to Truth Social to announce a new US strategic cryptocurrency reserve that will include bitcoin (BTC-USD), ethereum (ETH-USD), Solana (SOL-USD), cardano (ADA-USD), and XRP (XRP-USD). Framework Ventures Co-Founder Michael Anderson joins Market Domination to offer his perspective on this development. Anderson highlights that since all the digital assets included in the proposed reserve originated in the United States, this signals that "there's a focus on crypto be...
+
+President Donald Trump has taken to Truth Social to announce a new US strategic cryptocurrency reserve that will include bitcoin (BTC-USD), ethereum (ETH-USD), Solana (SOL-USD), cardano (ADA-USD), and XRP (XRP-USD). Framework Ventures Co-Founder Michael Anderson joins Market Domination to offer his perspective on this development.
+
+Anderson highlights that since all the digital assets included in the proposed reserve originated in the United States, this signals that "there's a focus on crypto being built in the US." However, he notes that bitcoin and ethereum will likely form the "core assets" of this reserve.
+
+Anderson emphasizes the diverse nature of the selected cryptocurrencies, noting that these digital assets are "fundamentally different altogether."
+
+Nonetheless, he supports the multi-asset approach: "I think it makes a ton of sense that there's not just one asset that's going to be put in there but multiple assets, and I wouldn't be surprised if there's others that get included as well."
+
+After touching 94,000 over the weekend on President Trump's announcement of a strategic crypto reserve, Bitcoin has fallen back below 86,000 today. Joining us now to discuss the latest developments in crypto, Michael Anderson, co-founder at Framework Ventures. Michael, it is good to see you. So, Trump talking again about this idea of a strategic crypto reserve, Michael. This time he also mentioned, not just Bitcoin, but also some smaller tokens as well. Did that surprise you, Michael?
+
+Yeah, well, it was really interesting that it came through over a tweet. Um, I think what we can kind of piece together from the tweet is that all the assets listed kind of originated from teams based in the United States. So, it does seem that there's a focus on crypto being built in the US, but I think what he also said in a follow-up tweet is that the core of the crypto reserve will be based around Bitcoin and Ethereum, the core assets that are, you know, the basis of the entire blockchain ecosystem. And I think this is definitely an interesting move. I think it's a follow-through of the Trump campaign to develop a crypto reserve. Um, but, but I also think that while this is definitely an interesting follow-through, what the rest of the industry is definitely more interested in is the movement on the bills that are working their way through Congress right now.
+
+But to linger on the reserve for a moment and to your point, it's not created yet. We don't know if Congress would need to create it. We don't know if these things would actually go into it. But at one point, does it risk looking like a kickback to his donors who were invested in all of these various other cryptocurrencies, you know, in a much more concentrated fashion than Bitcoin, which is larger?
+
+Yeah, well, I don't think that it's necessarily a kickback because many Americans, tens of millions of Americans own these assets. And all of these assets are the basis, like I mentioned, for the entire crypto ecosystem. And when we look at kind of Bitcoin versus any of the other assets, whether it's Ethereum or any of the other smart contract platforms that are being discussed, those are fundamentally different kind of assets altogether. Bitcoin, maybe you could call it a digital gold, whereas the base layer L1s or smart contract platforms where applications are being built on top of them. And so, I think it makes a ton of sense that there's not just one asset that's going to be put in there, but multiple assets. And I wouldn't be surprised if there's others that get included eventually as well.
+
+Michael, after this, you know, big hack of Bybit, would you be concerned about the general security of such a strategic reserve?
+
+Well, I think, you know, the details of the hack of Bybit are such that the hackers actually got access in kind of a traditional cybersecurity attack vector in and of itself. It doesn't really have anything to do with the assets. It doesn't have anything to do with kind of the core technology of the blockchains themselves. It's just a classic, they got access to servers that are controlling these assets. And I think that there's a number of service providers that have never had these issues before and were users of those services as well. And I don't have any concerns of those services having the same attack vector that we saw with Bybit.
+
+To watch more expert insights and analysis on the latest market action, check out more Market Domination here.
+
+This post was written by Angel Smith
+
+---
+SENTIMENT: 
+SCORE: 0.0

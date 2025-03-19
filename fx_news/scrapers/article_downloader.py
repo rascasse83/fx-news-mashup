@@ -7,6 +7,7 @@ import random
 import logging
 from datetime import datetime
 import glob
+from urllib.parse import urlparse, urljoin
 
 # Set up logging
 logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -14,6 +15,93 @@ logger = logging.getLogger(__name__)
 
 SESSION_PROCESSED_URLS = set()
 SESSION_PROCESSED_TIMESTAMPS = {}
+
+
+def normalize_yahoo_url(url: str) -> str:
+    """
+    Normalize a Yahoo Finance URL to ensure it's properly formatted
+    
+    Args:
+        url: URL to normalize
+        
+    Returns:
+        Normalized URL
+    """
+    # Handle empty URLs
+    if not url:
+        return ""
+    
+    # If URL already starts with http/https, validate and return
+    if url.startswith(('http://', 'https://')):
+        parsed = urlparse(url)
+        
+        # Fix malformed URLs with domains like 'finance.yahoo.comhttps'
+        if 'yahoo.comhttps' in parsed.netloc:
+            # Extract the path portion as the real URL
+            path_parts = parsed.path.lstrip('/').split('/', 1)
+            if len(path_parts) > 1 and path_parts[0].endswith('.com'):
+                # Reconstruct proper URL
+                domain = path_parts[0]
+                new_path = path_parts[1] if len(path_parts) > 1 else ''
+                return f"https://{domain}/{new_path}"
+        return url
+            
+    # Handle relative URLs
+    if url.startswith('/'):
+        return urljoin('https://finance.yahoo.com', url)
+    
+    # Handle protocol-relative URLs
+    if url.startswith('//'):
+        return 'https:' + url
+    
+    # Default case: assume it's a path relative to finance.yahoo.com
+    return urljoin('https://finance.yahoo.com/', url)
+
+def extract_article_id_from_url(url: str) -> str:
+    """
+    Extract unique article ID from Yahoo Finance URL
+    
+    Args:
+        url: Yahoo Finance article URL
+        
+    Returns:
+        Article ID or empty string if not found
+    """
+    # Try to find article ID in URL patterns
+    patterns = [
+        r'/news/([^/]+)-(\d{10,})\.html',  # Pattern for /news/article-title-123456789.html
+        r'/video/([^/]+)-(\d{9,})\.html',  # Pattern for /video/video-title-123456789.html
+        r'[/-](\d{10,})(?:[/-]|\.|\?|$)',  # Pattern for timestamp in URL
+        r'([a-f0-9]{8,}(?:-[a-f0-9]{4,}){3,}[a-f0-9]{8,})'  # Pattern for UUID
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            # If the pattern has 2 groups, use group 2 (usually the timestamp/ID)
+            if match.lastindex and match.lastindex > 1:
+                return match.group(2)
+            return match.group(1)
+    
+    # Try to extract a path-based identifier
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        path = parsed.path
+        
+        # Remove file extension
+        path = re.sub(r'\.\w+$', '', path)
+        
+        # Get the last part of the path (usually contains the article identifier)
+        parts = path.strip('/').split('/')
+        if len(parts) > 0:
+            return parts[-1]
+    except:
+        pass
+    
+    # Fallback to hash of full URL if no ID can be extracted
+    import hashlib
+    return hashlib.md5(url.encode()).hexdigest()
 
 def debug_article_processing(url, symbol, folder):
     """Debug function to diagnose why duplicate detection is failing"""
@@ -282,13 +370,9 @@ def download_article_content(url, headers=None):
     try:
         time.sleep(random.uniform(0.5, 1.5))
 
-        if not url.startswith('http'):
-            if 'yahoo' in url:
-                url = f"https://finance.yahoo.com{url}"
-            else:
-                logger.error(f"Invalid URL format: {url}")
-                return None
-
+        # Fix malformed URLs - KEY CHANGE HERE
+        url = normalize_yahoo_url(url)
+        
         logger.info(f"Downloading article from: {url}")
 
         response = requests.get(url, headers=headers, timeout=10)
@@ -417,12 +501,16 @@ def save_article_to_file(symbol, article_data, folder="fx_news/scrapers/news/yah
     try:
         os.makedirs(folder, exist_ok=True)
 
-        # Include the unix timestamp in the filename
+        # Include the unix timestamp in the filename (keeping original format)
         unix_timestamp = article_data.get("unix_timestamp", int(time.time()))
         symbol = symbol.lower()
+        
+        # Extract article ID from URL (for metadata only, not filename)
+        article_id = extract_article_id_from_url(article_data.get("url", ""))
+        
+        # Use original filename format without article ID
         filename = f"article_{unix_timestamp}_{symbol}"
         base_filepath = os.path.join(folder, f"{filename}.txt")
-
         filepath = get_unique_filename(base_filepath)
 
         # Make sure we use the actual article title if available
@@ -449,6 +537,7 @@ def save_article_to_file(symbol, article_data, folder="fx_news/scrapers/news/yah
 
         with open(filepath, 'w', encoding='utf-8') as file:
             file.write(f"# {title}\n\n")
+            file.write(f"Article ID: {article_id}\n")  # Add article ID to the metadata
             file.write(f"Source: {article_data['url']}\n")
             file.write(f"Timestamp: {unix_timestamp} ({datetime.fromtimestamp(unix_timestamp).isoformat()})\n\n")
             file.write(f"SUMMARY: {summary}\n\n")  # Clearly labeled summary
@@ -461,7 +550,7 @@ def save_article_to_file(symbol, article_data, folder="fx_news/scrapers/news/yah
         # Update the timestamp cache with this new article's timestamp
         update_timestamp_cache(symbol, unix_timestamp, folder)
         
-        logger.info(f"Saved article to {filepath} with title: {title}")
+        logger.info(f"Saved article to {filepath} with title: {title} and ID: {article_id}")
         return filepath
 
     except Exception as e:
@@ -476,6 +565,18 @@ def is_duplicate_article(title, url, symbol, folder):
         # Get the latest timestamp from cache
         latest_timestamp = get_latest_timestamp(folder, symbol)
         logger.info(f"Checking for duplicate against latest timestamp: {latest_timestamp}")
+        
+        # Extract article ID from URL
+        article_id = extract_article_id_from_url(url)
+        if article_id:
+            logger.info(f"Extracted article ID from URL: {article_id}")
+            
+            # Check for files containing this article ID
+            id_pattern = os.path.join(folder, f"*{article_id}*.txt")
+            id_files = glob.glob(id_pattern)
+            if id_files:
+                logger.info(f"DUPLICATE FOUND: Article with ID {article_id} already exists at {id_files[0]}")
+                return True, id_files[0]
         
         # First, extract any timestamp from the article (either from URL or content)
         article_timestamp = 0
@@ -542,7 +643,7 @@ def is_duplicate_article(title, url, symbol, folder):
         
     except Exception as e:
         logger.error(f"Error checking for duplicate article: {str(e)}")
-        return False, None      
+        return False, None
     
 # Changes to download_single_article to handle timestamp updates
 def download_single_article(symbol, url, folder="fx_news/scrapers/news/yahoo", sentiment_info=None):

@@ -5,7 +5,7 @@ Contains functions for creating and managing the sidebar UI.
 import streamlit as st
 from typing import Dict, List, Any, Callable
 from datetime import datetime
-
+import gc
 from fx_news.utils.notifications import add_notification
 from fx_news.data.session import switch_market_type
 from fx_news.services.rates_service import update_rates
@@ -25,7 +25,17 @@ def create_sidebar():
         create_subscription_management_section()
         create_display_controls_section()
         create_refresh_controls_section()
+        create_memory_saving_section()
+        # To DO: add as a function !!
+        if st.sidebar.button("Debug News Session State"):
+            st.sidebar.write({
+            'fx_news': len(st.session_state.get('fx_news', [])),
+            'cached_news': len(st.session_state.get('cached_news', [])),
+            'market_type': st.session_state.get('market_type', 'Unknown'),
+            'last_fx_news_fetch': st.session_state.get('last_fx_news_fetch')
+        })
         create_notification_section()
+        
 
 def create_navigation_section():
     """Create the navigation section in the sidebar."""
@@ -227,6 +237,23 @@ def create_display_controls_section():
             
         if 'last_sentiment_auto_refresh_time' in st.session_state and st.session_state.last_sentiment_auto_refresh_time:
             st.caption(f"Last sentiment refresh: {st.session_state.last_sentiment_auto_refresh_time.strftime('%H:%M:%S')}")
+
+def create_memory_saving_section():
+    
+    st.header("Performance Settings")
+    memory_saving = st.toggle("Memory-Saving Mode", 
+                        value=st.session_state.memory_saving_mode,
+                        help="Reduces memory usage but may affect responsiveness")
+
+    if memory_saving != st.session_state.memory_saving_mode:
+        st.session_state.memory_saving_mode = memory_saving
+        if memory_saving:
+            st.session_state.news_max_days_old = 3  # More aggressive limit
+            gc.collect()  # Force garbage collection
+            add_notification("Memory-saving mode enabled", "system")
+        else:
+            st.session_state.news_max_days_old = 5  # Default limit
+            add_notification("Memory-saving mode disabled", "system")
 
 def create_refresh_controls_section():
     """Create the refresh controls section in the sidebar."""

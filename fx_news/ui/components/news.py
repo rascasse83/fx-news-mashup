@@ -1,10 +1,173 @@
 import streamlit as st
 from datetime import datetime
 from datetime import datetime, timedelta
-from fx_news.services.news_service import fetch_news, filter_news_by_market_type
+from fx_news.services.news_service import fetch_news, filter_news_by_market_type, reset_news_session_state, debug_news_file_loading
 from fx_news.utils.notifications import add_notification
 
+def force_load_news_files():
+    """Force load news files from the disk, bypassing the usual loading mechanism."""
+    import os
+    import glob
+    import re
+    from datetime import datetime
+    
+    # Try multiple possible locations for the news files
+    possible_folders = [
+        "fx_news/scrapers/news/yahoo",
+        "scrapers/news/yahoo",
+        "news/yahoo",
+        "yahoo"
+    ]
+    
+    found_folder = None
+    for folder in possible_folders:
+        if os.path.exists(folder) and os.path.isdir(folder):
+            files = glob.glob(os.path.join(folder, "*.txt"))
+            if files:
+                found_folder = folder
+                st.success(f"Found {len(files)} news files in {folder}")
+                break
+    
+    if not found_folder:
+        st.error("Could not find any news files in the expected locations.")
+        return
+    
+    # Load news files
+    all_news = []
+    
+    files = glob.glob(os.path.join(found_folder, "*.txt"))
+    for file_path in files:
+        try:
+            # Extract basic file info
+            filename = os.path.basename(file_path)
+            
+            # Extract timestamp from filename
+            timestamp_match = re.search(r'article_(\d{10})_', filename)
+            if not timestamp_match:
+                continue
+                
+            file_timestamp = int(timestamp_match.group(1))
+            file_date = datetime.fromtimestamp(file_timestamp)
+            
+            # Read file content
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Extract title
+            title_match = re.search(r'^# (.+)$', content, re.MULTILINE)
+            title = title_match.group(1).strip() if title_match else "No title"
+            
+            # Extract source
+            source = "Yahoo Finance"  # Default
+            source_match = re.search(r'^Source: (.+)$', content, re.MULTILINE)
+            if source_match:
+                url = source_match.group(1).strip()
+                if "bloomberg" in url.lower():
+                    source = "Bloomberg"
+                elif "reuters" in url.lower():
+                    source = "Reuters"
+            
+            # Extract summary
+            summary = ""
+            summary_match = re.search(r'SUMMARY:\s(.*?)(?:\n\n|\Z)', content, re.DOTALL)
+            if summary_match:
+                summary = summary_match.group(1).strip()
+            
+            # Extract sentiment
+            sentiment = "neutral"  # Default
+            sentiment_match = re.search(r'SENTIMENT:\s(.*?)$', content, re.MULTILINE)
+            if sentiment_match:
+                sentiment = sentiment_match.group(1).strip()
+            
+            # Extract score
+            score = 0.0  # Default
+            score_match = re.search(r'SCORE:\s([-\d\.]+)$', content, re.MULTILINE)
+            if score_match:
+                try:
+                    score = float(score_match.group(1).strip())
+                except:
+                    pass
+            
+            # Extract currency pair from filename
+            currency = "Unknown"
+            currency_pairs = set()
+            
+            # Try to extract currency from filename
+            currency_match = re.search(r'_([a-zA-Z0-9_]+).txt$', filename)
+            if currency_match:
+                symbol = currency_match.group(1).lower()
+                
+                # Try to split into base/quote
+                if '_' in symbol:
+                    base, quote = symbol.split('_', 1)
+                    currency = f"{base.upper()}/{quote.upper()}"
+                    currency_pairs = {currency}
+                else:
+                    # Special cases
+                    if symbol in ['dji', 'gspc', 'ixic', 'ftse', 'gdaxi', 'fchi', 'n225']:
+                        indices_map = {
+                            'dji': 'Dow Jones',
+                            'gspc': 'S&P 500',
+                            'ixic': 'NASDAQ',
+                            'ftse': 'FTSE 100',
+                            'gdaxi': 'DAX',
+                            'fchi': 'CAC 40',
+                            'n225': 'Nikkei 225'
+                        }
+                        currency = indices_map.get(symbol, symbol.upper())
+                    else:
+                        currency = symbol.upper()
+                    
+                    currency_pairs = {currency}
+            
+            # Create news item
+            news_item = {
+                "title": title,
+                "summary": summary,
+                "source": source,
+                "timestamp": file_date,
+                "unix_timestamp": file_timestamp,
+                "currency": currency,
+                "currency_pairs": currency_pairs,
+                "sentiment": sentiment,
+                "score": score,
+                "file_path": file_path,
+                # Add market type flags
+                "is_fx": True,  # Default to all types for now to ensure display
+                "is_crypto": True,
+                "is_indices": True,
+                "is_market": True
+            }
+            
+            all_news.append(news_item)
+        except Exception as e:
+            st.error(f"Error processing {filename}: {str(e)}")
+    
+    # Sort by timestamp (newest first)
+    all_news.sort(key=lambda x: x["timestamp"], reverse=True)
+    
+    # Update session state
+    st.session_state.fx_news = all_news.copy()
+    st.session_state.crypto_news = all_news.copy()
+    st.session_state.indices_news = all_news.copy()
+    st.session_state.cached_news = all_news.copy()
+    
+    # Set timestamps
+    current_time = datetime.now()
+    st.session_state.last_fx_news_fetch = current_time
+    st.session_state.last_crypto_news_fetch = current_time
+    st.session_state.last_indices_news_fetch = current_time
+    st.session_state.last_news_fetch = current_time
+    
+    st.success(f"Successfully loaded {len(all_news)} news items")
+    return all_news
+
+
 def display_news_sidebar():
+
+    # Reset all news-related state to force a fresh load
+    # reset_news_session_state()
+
     """Display the news sidebar with filter controls and news items"""
     # Dynamic header based on market type
     if st.session_state.market_type == 'FX':
@@ -112,6 +275,8 @@ def display_news_sidebar():
             update_text = f"{time_diff.seconds // 3600} hours ago"
         st.caption(f"{market_type} news last updated: {update_text}")
 
+    st.write(f"Before filtering: {len(news_items)} news items")
+
     # Apply sentiment filter
     if sentiment_filter != "All News":
         if sentiment_filter == "Important Only":
@@ -163,6 +328,8 @@ def display_news_sidebar():
 
         # Filter news based on current market type and subscriptions
         filtered_news = filter_news_by_market_type(news_items, subscription_pairs, st.session_state.market_type)
+        # filtered_news = news_items  # Temporarily skip filtering
+        st.write(f"Bypassing market type filter, showing all {len(filtered_news)} news items")
             
         # Display the filtered news
         if filtered_news:
@@ -171,6 +338,105 @@ def display_news_sidebar():
             st.info("No news items match your filters")
     else:
         st.info("No news items match your filters")
+
+    if st.button("Force Load News"):
+            force_load_news_files()
+            st.rerun()  # Force a page refresh
+
+
+    if st.button("Debug News System"):
+        simple_news_debug()
+    # debug_news_file_loading()
+    
+
+
+# Add this function to your existing app file (e.g., app.py or news.py)
+# Then call it from somewhere in your UI
+
+def simple_news_debug():
+    """
+    A simple function to debug news loading issues directly in your Streamlit app.
+    Add this function to your app and call it from somewhere in your UI.
+    """
+    import streamlit as st
+    import os
+    import glob
+    from datetime import datetime
+    
+    st.header("News System Debug")
+    
+    # Show session state info
+    st.subheader("Session State Information")
+    market_type = st.session_state.get("market_type", "Unknown")
+    st.write(f"Current market type: {market_type}")
+    
+    news_keys = [
+        'fx_news', 'crypto_news', 'indices_news', 'cached_news',
+        'last_fx_news_fetch', 'last_crypto_news_fetch', 'last_indices_news_fetch'
+    ]
+    
+    for key in news_keys:
+        if key in st.session_state:
+            if isinstance(st.session_state[key], list):
+                st.write(f"{key}: {len(st.session_state[key])} items")
+            else:
+                st.write(f"{key}: {st.session_state[key]}")
+        else:
+            st.write(f"{key}: Not in session state")
+    
+    # Check folder paths
+    st.subheader("News Folder Check")
+    
+    folders_to_check = [
+        "fx_news/scrapers/news/yahoo",
+        "scrapers/news/yahoo",
+        "news/yahoo",
+        "yahoo",
+        "news"
+    ]
+    
+    current_dir = os.getcwd()
+    st.write(f"Current working directory: {current_dir}")
+    
+    for folder in folders_to_check:
+        exists = os.path.exists(folder)
+        st.write(f"Folder '{folder}': {'Exists' if exists else 'Not found'}")
+        
+        if exists:
+            # Check for .txt files
+            txt_files = glob.glob(os.path.join(folder, "*.txt"))
+            st.write(f"  - Found {len(txt_files)} .txt files")
+            
+            # Show a few example files
+            if txt_files:
+                st.write("  - Example files:")
+                for file in txt_files[:5]:  # Show up to 5 files
+                    filename = os.path.basename(file)
+                    file_size = os.path.getsize(file)
+                    mod_time = datetime.fromtimestamp(os.path.getmtime(file))
+                    st.write(f"    - {filename} ({file_size} bytes, modified {mod_time})")
+    
+    # Add manual reset button
+    st.subheader("Manual News Reset")
+    if st.button("Reset News Cache"):
+        # Reset news-related session state
+        for key in news_keys:
+            if key in st.session_state:
+                if key.startswith("last_"):
+                    st.session_state[key] = None
+                elif isinstance(st.session_state[key], list):
+                    st.session_state[key] = []
+        
+        # Force refresh flag
+        if 'refresh_news_clicked' in st.session_state:
+            st.session_state.refresh_news_clicked = True
+        
+        st.success("News cache reset. Please return to the main page.")
+        
+        # Optional: Force rerun
+        st.rerun()
+
+
 
 def display_news_items(news_items):
     """
