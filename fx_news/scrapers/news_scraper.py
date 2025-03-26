@@ -11,6 +11,7 @@ import glob
 from fx_news.scrapers.article_downloader import download_single_article, get_latest_timestamp, update_timestamp_cache, normalize_yahoo_url
 from fx_news.scrapers.robots_txt_parser import RobotsTxtParser
 from fx_news.scrapers.analyze_sentiment import analyze_sentiment_with_mistral
+from fx_news.utils.notifications import add_notification
 from fx_news.config.settings import indices
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urljoin
@@ -923,7 +924,7 @@ def format_currency_pair_for_yahoo(base, quote):
     else:
         return f"{base}{quote}%3DX"
 
-def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo", max_days_old: int = 30, ignore_processed: bool = True) -> List[Dict[str, Any]]:
+def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo", max_days_old: int = 5, ignore_processed: bool = True) -> List[Dict[str, Any]]:
     """
     Load previously saved news articles from filesystem with options to bypass filters
     
@@ -952,7 +953,7 @@ def load_news_from_files(symbol: str, folder: str = "fx_news/scrapers/news/yahoo
         logger.setLevel(logging.DEBUG)
 
     if max_days_old is None:
-        max_days_old = st.session_state.get('news_max_days_old', 30)    
+        max_days_old = st.session_state.get('news_max_days_old', 5)    
 
     # Use the session state value if not provided 
     if max_days_old is None and 'news_max_days_old' in st.session_state:

@@ -355,7 +355,7 @@ def fetch_news(currencies: List[str] = None, use_mock_fallback: bool = True,
         
         for currency in currency_symbols:
             # Load with a reasonable max_days_old
-            news_items = load_news_from_files(currency, folder=news_folder, max_days_old=7)
+            news_items = load_news_from_files(currency, folder=news_folder, max_days_old=5)
             logger.info(f"Loaded {len(news_items)} news items for {currency} from disk")
             all_loaded_news.extend(news_items)
             
@@ -452,7 +452,7 @@ def fetch_news(currencies: List[str] = None, use_mock_fallback: bool = True,
     # As a last resort, return empty list
     logger.warning("No news sources available, returning empty list")
     add_notification("No news sources available. Please try again later.", "warning")
-    # gc.collect()  # Force garbage collection
+    gc.collect()  # Force garbage collection
     return []
 
 def merge_news(new_items, existing_news, market_cached_news):

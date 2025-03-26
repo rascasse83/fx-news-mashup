@@ -49,7 +49,7 @@ def initialize_session_state():
         'debug_log': True,
         'show_debug': False,
         'add_variations': False,
-        'auto_refresh': False,
+        'auto_refresh': True,
         'fx_news': [],
         'crypto_news': [],
         'last_fx_news_fetch': None,
